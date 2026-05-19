@@ -1,6 +1,7 @@
 """kpatch-build integration - execute builds and capture results."""
 import json
 import os
+import shutil
 import subprocess
 import hashlib
 from datetime import datetime, timezone

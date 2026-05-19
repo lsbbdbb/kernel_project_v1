@@ -23,6 +23,7 @@ USAGE.md 明确要求：
 > | 验证环境 | Anolis OS 23.4 VM |
 
 当前 Dockerfile 只有 `python:3.11-slim` + 几个 apt 包，缺失：
+
 - **kpatch-build** 工具链（USAGE.md Step 3）
 - **龙蜥内核源码树** `kernel-src/linux-6.6.102-5.2.an23.x86_64/`（USAGE.md Step 4）
 - **vmlinux**（kpatch-build 的 `-v` 参数必需）

@@ -40,6 +40,45 @@
   auto_retry_allowed: false
   requires_human_review: true
 
+- pattern_id: apply.file_missing
+  category: patch_apply
+  reason_code: file_missing
+  matchers:
+    - "No such file or directory"
+    - "cannot find file"
+  action: manual_required
+  auto_retry_allowed: false
+  requires_human_review: true
+
+- pattern_id: compile.implicit_decl
+  category: compile
+  reason_code: missing_api_or_include
+  matchers:
+    - "implicit declaration of function"
+    - "error: implicit declaration"
+  action: rewrite
+  auto_retry_allowed: true
+  requires_human_review: false
+
+- pattern_id: compile.unknown_field
+  category: compile
+  reason_code: field_mismatch
+  matchers:
+    - "has no member named"
+  action: manual_required
+  auto_retry_allowed: false
+  requires_human_review: true
+
+- pattern_id: compile.undefined_symbol
+  category: compile
+  reason_code: undefined_symbol
+  matchers:
+    - "undefined reference"
+    - "undefined symbol"
+  action: rewrite
+  auto_retry_allowed: true
+  requires_human_review: false
+
 - pattern_id: env.no_vmlinux
   category: env_missing
   reason_code: missing_vmlinux

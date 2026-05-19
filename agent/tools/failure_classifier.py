@@ -5,11 +5,28 @@ import re
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime, timezone
 
+from agent.knowledge.loader import KnowledgeLoader
+
 
 class FailureClassifier:
     """Classify kpatch-build failures from build logs."""
 
-    FAILURE_PATTERNS = [
+    _patterns_cache: List[Dict] = []
+
+    @classmethod
+    def load_patterns(cls) -> List[Dict]:
+        if cls._patterns_cache:
+            return cls._patterns_cache
+        patterns = KnowledgeLoader.load_failure_patterns()
+        if patterns:
+            cls._patterns_cache = patterns
+        else:
+            cls._patterns_cache = cls._hardcoded_patterns()
+        return cls._patterns_cache
+
+    @staticmethod
+    def _hardcoded_patterns() -> List[Dict]:
+        return [
         {
             "pattern_id": "apply.hunk_failed", "stage": "apply",
             "category": "patch_apply", "reason_code": "hunk_failed",
@@ -86,7 +103,7 @@ class FailureClassifier:
             return failure
         with open(build_log_path) as f:
             log_content = f.read()
-        for pattern in self.FAILURE_PATTERNS:
+        for pattern in self.load_patterns():
             for matcher in pattern["matchers"]:
                 match = re.search(matcher, log_content, re.IGNORECASE)
                 if match:

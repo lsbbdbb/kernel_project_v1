@@ -6,11 +6,28 @@ import shutil
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
+from agent.knowledge.loader import KnowledgeLoader
+
 
 class RewriteAdvisor:
     """Advise and generate patch rewrites for target kernel adaptation."""
 
-    REWRITE_STRATEGIES = {
+    _strategies_cache: Dict[str, Dict] = {}
+
+    @classmethod
+    def load_strategies(cls) -> Dict[str, Dict]:
+        if cls._strategies_cache:
+            return cls._strategies_cache
+        strategies = KnowledgeLoader.load_rewrite_strategies()
+        if strategies:
+            cls._strategies_cache = strategies
+        else:
+            cls._strategies_cache = cls._hardcoded_strategies()
+        return cls._strategies_cache
+
+    @staticmethod
+    def _hardcoded_strategies() -> Dict[str, Dict]:
+        return {
         "context_drift": {
             "description": "Context lines changed, function still exists",
             "auto_allowed": True,
@@ -46,7 +63,7 @@ class RewriteAdvisor:
         reason_code = failure.get("reason_code", "unknown")
         category = failure.get("category", "unknown")
         strategy = self._map_strategy(reason_code, category)
-        strategy_info = self.REWRITE_STRATEGIES.get(strategy, {})
+        strategy_info = self.load_strategies().get(strategy, {})
         affected_unit = self._find_affected_unit(failure, change_units)
         rewrite_allowed = self._check_rewrite_allowed(affected_unit, strategy_info)
         plan = {
