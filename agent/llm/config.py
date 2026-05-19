@@ -6,7 +6,7 @@ from typing import Optional
 
 DEFAULT_BASE_URLS = {
     "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    "deepseek": "https://api.deepseek.com",
+    "deepseek": "https://api.deepseek.com/v1",
     "openai": None,
     "ollama": "http://localhost:11434/v1",
 }
@@ -29,7 +29,7 @@ class LLMConfig:
         provider = os.getenv("LLM_PROVIDER", "qwen").strip().lower()
         default_models = {
             "qwen": "qwen-max",
-            "deepseek": "deepseek-v4-pro",
+            "deepseek": "deepseek-chat",
             "openai": "gpt-4o-mini",
             "ollama": "llama3.1",
         }
