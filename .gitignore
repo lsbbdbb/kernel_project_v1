@@ -6,3 +6,4 @@ dist/
 build/
 test_run/
 work/
+venv/

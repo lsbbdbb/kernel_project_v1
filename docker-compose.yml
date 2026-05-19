@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   agent:
     build:
@@ -7,9 +5,12 @@ services:
       dockerfile: Dockerfile
     volumes:
       - .:/app
+      - kernel-src:/kernel-src
     working_dir: /app
-    # Default: run tests
-    command: ["python", "-m", "pytest", "tests/", "-v"]
+    environment:
+      - KERNEL_SRC=/kernel-src/linux-6.6.102-5.2.an23.x86_64
+    # Default: run tests via entrypoint
+    command: ["test"]
 
   agent-dev:
     build:
@@ -17,11 +18,14 @@ services:
       dockerfile: Dockerfile
     volumes:
       - .:/app
+      - kernel-src:/kernel-src
     working_dir: /app
-    # Interactive development shell
+    environment:
+      - KERNEL_SRC=/kernel-src/linux-6.6.102-5.2.an23.x86_64
     stdin_open: true
     tty: true
-    entrypoint: ["/bin/bash"]
+    # Interactive shell via entrypoint
+    command: ["shell"]
 
   agent-run:
     build:
@@ -29,10 +33,15 @@ services:
       dockerfile: Dockerfile
     volumes:
       - .:/app
+      - kernel-src:/kernel-src
       - agent-output:/tmp/test_workspace
     working_dir: /app
-    # Run with sample CVEs
-    command: ["python", "-m", "agent", "--cves", "sample_cves.txt", "--workdir", "/tmp/test_workspace"]
+    environment:
+      - KERNEL_SRC=/kernel-src/linux-6.6.102-5.2.an23.x86_64
+      - WORKDIR=/tmp/test_workspace
+    # Run agent via entrypoint
+    command: ["run"]
 
 volumes:
+  kernel-src:
   agent-output:
