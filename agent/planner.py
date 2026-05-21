@@ -88,3 +88,116 @@ class Planner:
             if state.get("status") not in VALID_FINAL_STATUSES:
                 active.append(cve_id)
         return active
+
+
+class LLMPlanner(Planner):
+    """Planner that optionally consults an LLM at non-linear decision points."""
+
+    def __init__(self, state_mgr: StateManager, llm_client: Optional[object] = None, no_llm: bool = False):
+        super().__init__(state_mgr)
+        self.llm = llm_client
+        self.no_llm = no_llm
+
+    def decide_next(self, cve_id: str) -> Dict[str, Any]:
+        if self.no_llm or self.llm is None:
+            decision = super().decide_next(cve_id)
+            decision.setdefault("source", "rule")
+            return decision
+
+        state = self.state_mgr.get_state(cve_id)
+        current = state.get("state", "TaskCreated")
+
+        # Classification must happen before LLM decision so failure.json exists.
+        if current in ("FailureClassified", "VerifyFailed"):
+            llm_error = None
+            try:
+                payload = self._decision_payload(cve_id, state)
+                messages = [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You decide livepatch pipeline actions. Return JSON only. "
+                            "Use decision=prepare_rewrite when a safe rewrite retry is plausible; "
+                            "use decision=manual_required when the failure is repeated, unsafe, "
+                            "or not automatically recoverable."
+                        ),
+                    },
+                    {"role": "user", "content": json.dumps(payload, indent=2, ensure_ascii=False)},
+                ]
+                parsed = json.loads(self.llm.chat(messages))
+                if isinstance(parsed, dict):
+                    mapped = self._map_llm_decision(parsed)
+                    if mapped is not None:
+                        return mapped
+                    llm_error = f"Unrecognised LLM decision: {parsed}"
+            except Exception as exc:
+                llm_error = f"LLM decision failed: {exc}"
+
+            decision = super().decide_next(cve_id)
+            decision.setdefault("source", "rule")
+            if llm_error:
+                decision["llm_error"] = llm_error
+            return decision
+
+        decision = super().decide_next(cve_id)
+        decision.setdefault("source", "rule")
+        return decision
+
+    def _decision_payload(self, cve_id: str, state: Dict[str, Any]) -> Dict[str, Any]:
+        cve_dir = os.path.join(self.state_mgr.workdir, cve_id)
+        attempt = state.get("attempt", 0)
+        history = []
+        for i in range(1, attempt + 1):
+            hist_path = os.path.join(cve_dir, f"attempt_{i}.json")
+            if not os.path.exists(hist_path):
+                continue
+            try:
+                with open(hist_path) as f:
+                    hist = json.load(f)
+                failure = hist.get("failure", {})
+                history.append({
+                    "attempt": hist.get("attempt_index", i),
+                    "failure_reason": failure.get("reason_code", "unknown"),
+                    "retryable": failure.get("retryable", True),
+                })
+            except Exception:
+                history.append({"attempt": i, "note": "unreadable"})
+
+        failure_info = {}
+        failure_path = os.path.join(cve_dir, "failure.json")
+        if os.path.exists(failure_path):
+            try:
+                with open(failure_path) as f:
+                    failure_info = json.load(f)
+            except Exception:
+                failure_info = {"error": "unreadable failure.json"}
+
+        return {
+            "cve_id": cve_id,
+            "state": state,
+            "current_failure": failure_info,
+            "previous_attempts": history,
+        }
+
+    @staticmethod
+    def _map_llm_decision(parsed: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        decision = str(parsed.get("decision") or parsed.get("action") or "").strip().lower()
+        reason = parsed.get("reason", "")
+
+        if decision in {"rewrite", "prepare_rewrite"}:
+            return {
+                "action": "prepare_rewrite",
+                "next_state": "RewritePrepared",
+                "reason": reason,
+                "source": "llm",
+            }
+
+        if decision in {"manual_required", "manual", "stop", "done"}:
+            return {
+                "action": "done",
+                "next_state": "ManualRequired",
+                "reason": reason,
+                "source": "llm",
+            }
+
+        return None

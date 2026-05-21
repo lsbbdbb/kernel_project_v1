@@ -7,6 +7,7 @@ setup(
     install_requires=[
         "requests>=2.25.0",
         "pyyaml>=5.0",
+        "openai>=1.0.0",
     ],
     entry_points={
         "console_scripts": [

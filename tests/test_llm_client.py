@@ -22,6 +22,8 @@ class FakeClient:
 
 
 def test_config_from_env_qwen(monkeypatch):
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     monkeypatch.setenv("DASHSCOPE_API_KEY", "test-key")
     monkeypatch.setenv("LLM_MODEL", "qwen-plus")
 
@@ -33,7 +35,23 @@ def test_config_from_env_qwen(monkeypatch):
     assert config.is_configured()
 
 
+def test_config_defaults_to_deepseek_v4_pro(monkeypatch):
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("LLM_MODEL", raising=False)
+    monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OLLAMA_API_KEY", raising=False)
+
+    config = LLMConfig.from_env()
+
+    assert config.provider == "deepseek"
+    assert config.model == "deepseek-v4-pro"
+    assert config.base_url == "https://api.deepseek.com"
+
+
 def test_config_from_env_deepseek(monkeypatch):
+    monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
     monkeypatch.setenv("LLM_PROVIDER", "deepseek")
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
 
@@ -44,6 +62,16 @@ def test_config_from_env_deepseek(monkeypatch):
     assert config.api_key == "test-key"
     assert config.base_url == "https://api.deepseek.com"
     assert config.is_configured()
+
+
+def test_deepseek_model_alias_normalized(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "deepseek")
+    monkeypatch.setenv("LLM_MODEL", "deepseekv4-pro")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+
+    config = LLMConfig.from_env()
+
+    assert config.model == "deepseek-v4-pro"
 
 
 def test_ping_false_without_key():

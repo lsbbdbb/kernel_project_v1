@@ -16,7 +16,7 @@ import subprocess
 from typing import Dict, List
 
 from agent.state import StateManager
-from agent.planner import Planner
+from agent.planner import Planner, LLMPlanner
 
 # Tool imports
 from agent.tools.cve_resolver import CVEResolver
@@ -61,6 +61,22 @@ def parse_cves_file(path: str) -> list:
         print(f"Warning: Invalid CVE IDs skipped: {invalid}", file=sys.stderr)
 
     return valid
+
+
+def _target_source_dir(workdir: str, kernel_version: str) -> str:
+    """Resolve target kernel source path for host and container layouts."""
+    env_source = os.getenv("KERNEL_SRC")
+    if env_source:
+        return env_source
+
+    kernel_root = os.path.join(os.path.dirname(workdir), "kernel-src")
+    exact = os.path.join(kernel_root, "linux-" + kernel_version)
+    if os.path.isdir(exact):
+        return exact
+
+    # Backward-compatible fallback for older workdirs/scripts that omitted arch.
+    stripped = os.path.join(kernel_root, "linux-" + kernel_version.replace(".x86_64", ""))
+    return stripped
 
 
 # ---------------------------------------------------------------------------
@@ -130,8 +146,7 @@ def _action_check_target(cve_id: str, workdir: str, state_mgr: StateManager) -> 
     """Check target kernel source tree availability."""
     run_config = state_mgr.get_run_config()
     kernel_version = run_config.get("kernel_version", "6.6.102-5.2.an23.x86_64")
-    source_dir = os.path.join(os.path.dirname(workdir), "kernel-src",
-                              "linux-" + kernel_version.replace(".x86_64", ""))
+    source_dir = _target_source_dir(workdir, kernel_version)
 
     target_status = {"source_dir": source_dir, "exists": os.path.isdir(source_dir)}
     ctx_path = os.path.join(workdir, cve_id, "context_match.json")
@@ -162,8 +177,7 @@ def _action_apply_patch(cve_id: str, workdir: str, state_mgr: StateManager) -> D
 
     run_config = state_mgr.get_run_config()
     kernel_version = run_config.get("kernel_version", "6.6.102-5.2.an23.x86_64")
-    source_dir = os.path.join(os.path.dirname(workdir), "kernel-src",
-                              "linux-" + kernel_version.replace(".x86_64", ""))
+    source_dir = _target_source_dir(workdir, kernel_version)
 
     result = {"patch_path": patch_path, "source_dir": source_dir,
               "dry_run_ok": False, "error": None}
@@ -202,8 +216,7 @@ def _action_run_build(cve_id: str, workdir: str, state_mgr: StateManager) -> Dic
 
     run_config = state_mgr.get_run_config()
     kernel_version = run_config.get("kernel_version", "6.6.102-5.2.an23.x86_64")
-    source_dir = os.path.join(os.path.dirname(workdir), "kernel-src",
-                              "linux-" + kernel_version.replace(".x86_64", ""))
+    source_dir = _target_source_dir(workdir, kernel_version)
     vmlinux_path = os.path.join(source_dir, "vmlinux")
 
     builder = KpatchBuilder(workdir, cve_id)
@@ -438,6 +451,12 @@ def main():
                         help="Output working directory (default: auto-create)")
     parser.add_argument("--max-attempts", type=int, default=5,
                         help="Max rewrite attempts per CVE (default: 5)")
+    parser.add_argument("--no-llm", action="store_true",
+                        help="Disable LLM usage and run rule-only planner")
+    parser.add_argument("--llm-provider", default=None,
+                        help="LLM provider name (e.g., deepseek, qwen, openai)")
+    parser.add_argument("--llm-model", default=None,
+                        help="LLM model name to request from provider")
 
     args = parser.parse_args()
 
@@ -460,7 +479,31 @@ def main():
     state_mgr = StateManager(workdir)
     state_mgr.init_run_config(cve_ids, args.kernel_version, args.max_attempts)
 
-    planner = Planner(state_mgr)
+    # Initialize LLM client if requested and available. Fall back gracefully.
+    llm_client = None
+    if not args.no_llm:
+        try:
+            from agent.llm.config import LLMConfig
+            from agent.llm.client import LLMClient
+
+            # Prefer an env-based config if available
+            if hasattr(LLMConfig, 'from_env'):
+                cfg = LLMConfig.from_env()
+            else:
+                cfg = LLMConfig()
+            if args.llm_provider:
+                setattr(cfg, 'provider', args.llm_provider)
+            if args.llm_model:
+                setattr(cfg, 'model', LLMConfig.normalize_model(args.llm_model))
+
+            llm_client = LLMClient(cfg)
+            if not getattr(llm_client, 'ping', lambda: False)():
+                print("LLM client ping failed; continuing in --no-llm mode")
+                llm_client = None
+        except Exception:
+            print("LLM client not available or failed to initialize; running in no-llm mode")
+
+    planner = LLMPlanner(state_mgr, llm_client=llm_client, no_llm=(args.no_llm or llm_client is None))
 
     for cve_id in cve_ids:
         state_mgr.init_cve_state(cve_id)

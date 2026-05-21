@@ -6,7 +6,10 @@ values in the calling modules serving as fallback when YAML is unavailable.
 import os
 from typing import Dict, List
 
-import yaml
+try:
+    import yaml
+except ModuleNotFoundError:  # Keep rule fallback usable in minimal Python envs.
+    yaml = None
 
 
 class KnowledgeLoader:
@@ -27,8 +30,7 @@ class KnowledgeLoader:
         path = os.path.join(cls._rules_dir(), "failure_patterns.yaml")
         if not os.path.exists(path):
             return []
-        with open(path, encoding="utf-8") as f:
-            raw = yaml.safe_load(f) or []
+        raw = cls._load_yaml_list(path)
         patterns = []
         for item in raw:
             pattern = cls._normalize_failure_pattern(item)
@@ -43,14 +45,70 @@ class KnowledgeLoader:
         path = os.path.join(cls._rules_dir(), "rewrite_strategies.yaml")
         if not os.path.exists(path):
             return {}
-        with open(path, encoding="utf-8") as f:
-            raw = yaml.safe_load(f) or []
+        raw = cls._load_yaml_list(path)
         strategies = {}
         for item in raw:
             strategy_id, strategy = cls._normalize_rewrite_strategy(item)
             strategies[strategy_id] = strategy
         cls._rewrite_strategies = strategies
         return strategies
+
+    @staticmethod
+    def _load_yaml_list(path: str) -> List[Dict]:
+        """Load the simple list-of-maps rule YAML, with a stdlib fallback."""
+        with open(path, encoding="utf-8") as f:
+            content = f.read()
+
+        if yaml is not None:
+            return yaml.safe_load(content) or []
+
+        items: List[Dict] = []
+        current: Dict = {}
+        current_list_key = None
+
+        def coerce(value: str):
+            value = value.strip().strip('"').strip("'")
+            if value == "true":
+                return True
+            if value == "false":
+                return False
+            if value == "[]":
+                return []
+            return value
+
+        for raw_line in content.splitlines():
+            if not raw_line.strip() or raw_line.lstrip().startswith("#"):
+                continue
+            line = raw_line.rstrip()
+            stripped = line.strip()
+
+            if line.startswith("- ") and ":" in stripped:
+                if current:
+                    items.append(current)
+                current = {}
+                current_list_key = None
+                key, value = stripped[2:].split(":", 1)
+                current[key.strip()] = coerce(value)
+                continue
+
+            if stripped.startswith("- ") and current_list_key:
+                current.setdefault(current_list_key, []).append(coerce(stripped[2:]))
+                continue
+
+            if ":" in stripped and current is not None:
+                key, value = stripped.split(":", 1)
+                key = key.strip()
+                value = value.strip()
+                if value:
+                    current[key] = coerce(value)
+                    current_list_key = None
+                else:
+                    current[key] = []
+                    current_list_key = key
+
+        if current:
+            items.append(current)
+        return items
 
     @staticmethod
     def _derived_stage(pattern_id: str) -> str:
