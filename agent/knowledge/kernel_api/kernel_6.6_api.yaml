@@ -1,0 +1,92 @@
+# Kernel 6.6 API change reference for livepatch adaptation.
+# Documents common API differences between 6.6 and older kernels.
+
+- symbol: sock_create
+  old_signature: "int sock_create(int family, int type, int protocol, struct socket **res)"
+  new_signature: "int sock_create(struct net *net, int family, int type, int protocol, struct socket **res)"
+  category: function_signature
+  note: "Added struct net * parameter. Adjust callers to pass &init_net or derive from context."
+
+- symbol: kmalloc
+  old_signature: "void *kmalloc(size_t size, gfp_t flags)"
+  new_signature: "same"
+  category: best_practice
+  note: "Prefer kmalloc_array() for multiplicative allocations to avoid overflow. Use kfree_sensitive() for crypto/sensitive data."
+
+- symbol: kfree
+  old_signature: "void kfree(const void *ptr)"
+  new_signature: "same"
+  category: best_practice
+  note: "kfree(NULL) is safe. Do not double-free. In error paths, use goto-based cleanup with kfree at the label target."
+
+- symbol: __register_chrdev
+  old_signature: "int __register_chrdev(unsigned int major, unsigned int baseminor, unsigned int count, const char *name, const struct file_operations *fops)"
+  new_signature: "removed in 6.6"
+  category: removed_api
+  note: "Use register_chrdev_region() + cdev_init() + cdev_add() instead. This API was removed; patches calling it must be rewritten."
+
+- symbol: init_timer
+  old_signature: "void init_timer(struct timer_list *timer)"
+  new_signature: "removed – use timer_setup()"
+  category: removed_api
+  note: "timer_setup(timer, callback, flags) replaces init_timer() + manual callback assignment. Flags are usually 0."
+
+- symbol: setup_timer
+  old_signature: "void setup_timer(struct timer_list *timer, void (*func)(unsigned long), unsigned long data)"
+  new_signature: "removed – use timer_setup()"
+  category: removed_api
+  note: "Convert: timer_setup(timer, callback, 0). The callback now receives struct timer_list * instead of unsigned long."
+
+- symbol: PDE_DATA
+  old_signature: "void *PDE_DATA(const struct inode *inode)"
+  new_signature: "void *pde_data(const struct inode *inode)"
+  category: function_rename
+  note: "Lowercase rename in 6.x. Update all call sites."
+
+- symbol: get_random_bytes
+  old_signature: "void get_random_bytes(void *buf, int nbytes)"
+  new_signature: "void get_random_bytes(void *buf, size_t nbytes)"
+  category: function_signature
+  note: "Second parameter changed from int to size_t. Most callers compile fine; beware of -Wconversion warnings."
+
+- symbol: nla_parse
+  old_signature: "int nla_parse(struct nlattr **tb, int maxtype, const struct nlattr *head, int len, const struct nla_policy *policy, struct netlink_ext_ack *extack)"
+  new_signature: "int nla_parse(struct nlattr **tb, int maxtype, struct nlattr *head, int len, const struct nla_policy *policy, struct netlink_ext_ack *extack)"
+  category: function_signature
+  note: "Third parameter lost const qualifier in 6.x. Patches with const nla may get -Wdiscarded-qualifiers."
+
+- symbol: copy_from_user
+  old_signature: "unsigned long copy_from_user(void *to, const void __user *from, unsigned long n)"
+  new_signature: "same"
+  category: best_practice
+  note: "Always check return value (non-zero = bytes not copied). Never ignore the return value in security patches."
+
+- symbol: devm_kzalloc
+  old_signature: "void *devm_kzalloc(struct device *dev, size_t size, gfp_t gfp)"
+  new_signature: "same"
+  category: best_practice
+  note: "Automatically freed on device detach. Prefer over raw kmalloc in driver code. Do not manually kfree() devm allocations."
+
+- symbol: mutex_lock_interruptible
+  old_signature: "int mutex_lock_interruptible(struct mutex *lock)"
+  new_signature: "same"
+  category: best_practice
+  note: "Returns -EINTR on signal. Always check return value in kernel patches, never use mutex_lock() in interruptible context."
+
+- symbol: sk_data_ready
+  old_signature: "void (*sk_data_ready)(struct sock *sk)"
+  new_signature: "void (*sk_data_ready)(struct sock *sk, int len)"
+  category: function_signature
+  note: "Added int len parameter in 6.x. Callback implementations must accept two arguments."
+
+- symbol: MODULE_LICENSE
+  old_signature: "macro"
+  new_signature: "macro"
+  category: best_practice
+  note: "Livepatch modules need MODULE_LICENSE(\"GPL\"), MODULE_DESCRIPTION(), MODULE_AUTHOR(). Missing MODULE_LICENSE causes taint."
+
+- symbol: pr_warn
+  old_signature: "pr_warn(fmt, ...)"
+  new_signature: "same (was pr_warning)"
+  category: function_rename
+  note: "pr_warning() is deprecated since 5.x. All patches should use pr_warn() instead."
