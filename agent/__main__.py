@@ -281,7 +281,7 @@ def _action_classify_verify_failure(cve_id: str, workdir: str, state_mgr: StateM
     return failure
 
 
-def _action_prepare_rewrite(cve_id: str, workdir: str, state_mgr: StateManager) -> Dict:
+def _action_prepare_rewrite(cve_id: str, workdir: str, state_mgr: StateManager, llm_client=None) -> Dict:
     """Prepare rewrite plan and generate attempt_N.patch."""
     state = state_mgr.get_state(cve_id)
     attempt = state_mgr.increment_attempt(cve_id)
@@ -296,12 +296,25 @@ def _action_prepare_rewrite(cve_id: str, workdir: str, state_mgr: StateManager) 
         with open(change_units_path) as f:
             change_units = json.load(f)
 
-    advisor = RewriteAdvisor(workdir, cve_id)
+    # Build retriever for RAG injection when LLM is available
+    retriever = None
+    if llm_client and llm_client.ping():
+        try:
+            from agent.rag.knowledge_base import KnowledgeBase
+            from agent.rag.retriever import KnowledgeRetriever
+            kb = KnowledgeBase()
+            kb.load_yaml_rules()
+            retriever = KnowledgeRetriever(kb)
+        except Exception:
+            pass
+
+    advisor = RewriteAdvisor(workdir, cve_id, llm_client=llm_client, retriever=retriever)
     plan = advisor.create_rewrite_plan(failure, change_units, attempt)
 
     if plan.get("decision") == "rewrite":
         original_patch = os.path.join(workdir, cve_id, "patches", "original.patch")
-        rewrite_result = advisor.apply_rewrite(original_patch, plan, None, attempt)
+        target_source_dir = os.environ.get("KERNEL_SRC", "")
+        rewrite_result = advisor.apply_rewrite(original_patch, plan, target_source_dir, attempt)
         if rewrite_result.get("success"):
             state_mgr.transition_to(cve_id, "RewritePrepared",
                                     reason=f"Rewrite prepared (attempt {attempt})")
@@ -365,7 +378,7 @@ def _action_write_report(cve_id: str, workdir: str, state_mgr: StateManager, cve
 # Main loop
 # ---------------------------------------------------------------------------
 
-def process_cve(cve_id: str, workdir: str, state_mgr: StateManager, planner: Planner, cve_ids: List[str]) -> None:
+def process_cve(cve_id: str, workdir: str, state_mgr: StateManager, planner: Planner, cve_ids: List[str], llm_client=None) -> None:
     """Run the full pipeline for a single CVE."""
     max_iterations = 50  # Safety limit to prevent infinite loops
     iteration = 0
@@ -405,6 +418,8 @@ def process_cve(cve_id: str, workdir: str, state_mgr: StateManager, planner: Pla
         try:
             if action == "write_report":
                 result = handler(cve_id, workdir, state_mgr, cve_ids)
+            elif action == "prepare_rewrite":
+                result = handler(cve_id, workdir, state_mgr, llm_client)
             else:
                 result = handler(cve_id, workdir, state_mgr)
             print(f"  [{cve_id}]   -> {action} completed")
@@ -519,15 +534,7 @@ def main():
     # Process each CVE through the full pipeline
     for cve_id in cve_ids:
         print(f"[Processing] {cve_id}")
-        try:
-            process_cve(cve_id, workdir, state_mgr, planner, cve_ids)
-        except Exception as exc:
-            print(f"  [{cve_id}] Pipeline crashed: {exc}")
-            try:
-                state_mgr.set_error(cve_id, str(exc))
-                state_mgr.set_final_status(cve_id, "failed")
-            except Exception:
-                pass  # best-effort error recording
+        process_cve(cve_id, workdir, state_mgr, planner, cve_ids, llm_client)
         final_state = state_mgr.get_state(cve_id)
         print(f"[Done] {cve_id}: state={final_state.get('state')}, "
               f"status={final_state.get('status')}\n")
