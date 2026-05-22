@@ -19,6 +19,15 @@ class TestFailureClassifier:
         assert failure["reason_code"] == "api_mismatch"
         assert failure["retryable"] is True
 
+    def test_classify_api_argument_type_mismatch(self):
+        log_path = os.path.join(self.tmpdir, "build.log")
+        with open(log_path, "w") as f:
+            f.write("error: passing argument 1 of 'do_something' from incompatible pointer type\n")
+        classifier = FailureClassifier(self.tmpdir, "CVE-2026-0001")
+        failure = classifier.classify(log_path)
+        assert failure["category"] == "compile"
+        assert failure["reason_code"] == "api_mismatch"
+
     def test_classify_no_fentry(self):
         log_path = os.path.join(self.tmpdir, "build.log")
         with open(log_path, "w") as f:

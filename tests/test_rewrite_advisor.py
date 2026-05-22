@@ -71,6 +71,22 @@ class TestRewriteAdvisor:
         plan = self.advisor.create_rewrite_plan(failure, change_units, attempt=1)
         assert len(plan["semantic_must_keep"]) > 0
 
+    def test_missing_include_strategy_loaded_from_yaml(self):
+        failure = {
+            "category": "compile", "reason_code": "missing_api_or_include",
+            "location": {"file": "net/example.c"}, "retryable": True,
+        }
+        change_units = {
+            "units": [{
+                "change_id": "CU-001", "file": "net/example.c",
+                "function": "example_check", "rewrite_allowed": True,
+            }]
+        }
+        plan = self.advisor.create_rewrite_plan(failure, change_units, attempt=1)
+        assert plan["decision"] == "rewrite"
+        assert plan["strategy"] == "missing_include"
+        assert plan["semantic_must_keep"]
+
     def test_apply_rewrite_no_original(self):
         plan = {"decision": "rewrite", "strategy": "context_drift"}
         result = self.advisor.apply_rewrite(
