@@ -15,8 +15,9 @@
 set -euo pipefail
 
 KERNEL_VERSION="${1:-6.6.102-5.2.an23.x86_64}"
-KERNEL_BASE="${KERNEL_VERSION%%.*}"   # "6"
-GIT_BRANCH="linux-${KERNEL_BASE}"     # "linux-6"
+# Extract version for branch: 6.6.102-5.2.an23.x86_64 → 6.6.102-5.2
+KERNEL_RELEASE="$(echo "${KERNEL_VERSION}" | sed 's/\.an23.*//' | sed 's/\.x86_64.*//')"
+GIT_BRANCH="release/release-${KERNEL_RELEASE}.y"  # release/release-6.6.102-5.2.y
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -59,17 +60,25 @@ scripts/config -e LIVEPATCH 2>/dev/null || true
 scripts/config -e HAVE_LIVEPATCH 2>/dev/null || true
 scripts/config -e KALLSYMS_ALL 2>/dev/null || true
 scripts/config -e DEBUG_INFO 2>/dev/null || true
+# Enable NUMA_BALANCING (required for cpu_load declaration in fair.c, GCC 15)
+scripts/config -e NUMA_BALANCING 2>/dev/null || true
+# Disable -Werror (GCC 15 is stricter than the kernel expects)
+scripts/config -d WERROR 2>/dev/null || true
 
 # Re-generate .config
 yes "" | make oldconfig 2>&1 | tail -1
 
 # --- Build vmlinux ---
-echo "[3/3] Building vmlinux + modules_prepare..."
+echo "[3/4] Building vmlinux + modules_prepare..."
 NPROC=$(nproc 2>/dev/null || echo 4)
+# Cap at 8 to avoid fixdep race conditions with newer GCC
+if [ "${NPROC}" -gt 8 ]; then NPROC=8; fi
 echo "       Using ${NPROC} parallel jobs..."
 
 make -j"${NPROC}" vmlinux 2>&1 | tail -5
+echo "[4/4] Building modules (for Module.symvers)..."
 make -j"${NPROC}" modules_prepare 2>&1 | tail -5
+make -j"${NPROC}" modules 2>&1 | tail -5
 
 # --- Verify ---
 if [ -f "${SRC_DIR}/vmlinux" ]; then

@@ -4,6 +4,7 @@
   matchers:
     - "hunk FAILED"
     - "patch does not apply"
+    - "error: patch failed"
     - "fuzz"
   action: rewrite
   auto_retry_allowed: true
@@ -15,6 +16,7 @@
   matchers:
     - "too many arguments to function"
     - "too few arguments to function"
+    - "error: passing argument"
   action: rewrite
   auto_retry_allowed: true
   requires_human_review: false
@@ -36,6 +38,7 @@
     - "data structure layout change"
     - "static variable changed"
     - "unreconcilable difference"
+    - "section change"
   action: manual_required
   auto_retry_allowed: false
   requires_human_review: true
@@ -85,6 +88,7 @@
   matchers:
     - "vmlinux not found"
     - "cannot find vmlinux"
+    - "ERROR:.*vmlinux"
   action: fix_environment
   auto_retry_allowed: false
   requires_human_review: false

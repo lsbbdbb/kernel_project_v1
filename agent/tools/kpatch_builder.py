@@ -37,21 +37,26 @@ class KpatchBuilder:
             "error": None,
             "started_at": datetime.now(timezone.utc).isoformat(),
         }
+        patch_path = os.path.abspath(patch_path)
+        source_dir = os.path.abspath(source_dir)
+        vmlinux_path = os.path.abspath(vmlinux_path)
         cmd = ["kpatch-build", "-s", source_dir, "-v", vmlinux_path, patch_path]
         if kernel_devel_path:
             cmd.extend(["-d", kernel_devel_path])
         try:
             with open(log_path, "w") as log_file:
                 proc = subprocess.run(
-                    cmd, stdout=log_file, stderr=subprocess.STDOUT, timeout=1800)
+                    cmd, stdout=log_file, stderr=subprocess.STDOUT, timeout=1800,
+                    cwd=self.artifacts_dir)
             result["return_code"] = proc.returncode
             result["success"] = proc.returncode == 0
             if proc.returncode == 0:
-                ko_path = self._find_ko(source_dir)
+                ko_path = self._find_ko(self.artifacts_dir, source_dir)
                 if ko_path:
                     result["sha256"] = self._hash_file(ko_path)
                     dest = os.path.join(self.artifacts_dir, "livepatch.ko")
-                    shutil.copy2(ko_path, dest)
+                    if os.path.abspath(ko_path) != os.path.abspath(dest):
+                        shutil.copy2(ko_path, dest)
                     result["artifact_path"] = dest
                     with open(os.path.join(self.artifacts_dir, "livepatch.ko.sha256"), "w") as f:
                         f.write(f"{result['sha256']}  livepatch.ko\n")
@@ -78,12 +83,20 @@ class KpatchBuilder:
                 pass
         return env_check
 
-    def _find_ko(self, source_dir: str) -> Optional[str]:
-        for root, dirs, files in os.walk(source_dir):
-            for f in files:
-                if f.endswith(".ko") and "livepatch" in f:
-                    return os.path.join(root, f)
-        return None
+    def _find_ko(self, *search_dirs: str) -> Optional[str]:
+        candidates = []
+        for search_dir in search_dirs:
+            if not search_dir or not os.path.isdir(search_dir):
+                continue
+            for root, dirs, files in os.walk(search_dir):
+                for f in files:
+                    if f.endswith(".ko") and "livepatch" in f:
+                        path = os.path.join(root, f)
+                        candidates.append((os.path.getmtime(path), path))
+        if not candidates:
+            return None
+        candidates.sort(reverse=True)
+        return candidates[0][1]
 
     @staticmethod
     def _hash_file(path: str) -> str:

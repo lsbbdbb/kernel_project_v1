@@ -17,6 +17,16 @@
     - "git apply --check"
     - "kpatch-build"
 
+- strategy_id: missing_include
+  description: "Add or adapt includes, declarations, or symbol references for target kernel APIs"
+  allowed: true
+  semantic_guards:
+    - "must_not_change_fix_logic"
+    - "must_preserve_security_boundary_checks"
+  validation:
+    - "git apply --check"
+    - "kpatch-build"
+
 - strategy_id: no_fentry_hoist
   description: "Move fix to a hookable caller function"
   allowed: false
