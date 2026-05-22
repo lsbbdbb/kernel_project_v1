@@ -122,10 +122,8 @@ class KnowledgeBase:
         renamed functions, changed signatures, removed symbols, etc.
         """
         if path is None:
-            # Default location relative to the knowledge directory
-            base = os.path.dirname(os.path.abspath(__file__))
-            # rag/ → agent/ → knowledge/
-            agent_dir = os.path.dirname(os.path.dirname(base))
+            base = os.path.dirname(os.path.abspath(__file__))  # .../agent/rag
+            agent_dir = os.path.dirname(base)                   # .../agent
             path = os.path.join(
                 agent_dir, "knowledge", "kernel_api", "kernel_6.6_api.yaml"
             )
