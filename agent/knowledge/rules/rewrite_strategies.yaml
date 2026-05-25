@@ -27,6 +27,15 @@
   validation:
     - "manual_semantic_review"
 
+- strategy_id: missing_include
+  description: "Missing header or macro definition"
+  allowed: true
+  requires_human_review: false
+  semantic_guards:
+    - "must_not_change_fix_logic"
+  validation:
+    - "git apply --check"
+
 - strategy_id: struct_abi
   description: "Structure ABI change - not auto-rewritable"
   allowed: false
