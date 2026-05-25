@@ -1,6 +1,7 @@
 """Tests for PatchParser."""
 import os
 import tempfile
+import pytest
 from agent.tools.patch_parser import PatchParser
 
 
@@ -64,3 +65,10 @@ class TestPatchParser:
         parser = PatchParser(self.tmpdir, "CVE-2026-0001")
         patch_ir = parser.parse_patch(self.patch_path)
         assert isinstance(patch_ir.get("risk_tags"), list)
+
+    def test_rejects_placeholder_without_unified_diff(self):
+        with open(self.patch_path, "w") as f:
+            f.write("# No upstream patch found\n")
+
+        with pytest.raises(ValueError, match="no unified diff"):
+            PatchParser(self.tmpdir, "CVE-2026-0001").parse_patch(self.patch_path)

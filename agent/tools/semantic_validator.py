@@ -59,6 +59,11 @@ class SemanticValidator:
         self._check_init_functions_untouched(original_patch, rewritten_patch)
         self._check_semantic_role_preserved(original_patch, rewritten_patch)
 
+        # Wrapper function validation (struct_abi, no_fentry strategies)
+        self._check_wrapper_preserves_signature(rewritten_patch)
+        self._check_allocation_has_free(rewritten_patch)
+        self._check_no_leaked_shadow_var(rewritten_patch)
+
         return {
             "valid": len(self.issues) == 0,
             "issues": list(self.issues),
@@ -118,3 +123,80 @@ class SemanticValidator:
             self.issues.append(
                 f"All original functions lost: {orig_funcs} → {new_funcs}"
             )
+
+    # ------------------------------------------------------------------
+    # Wrapper/allocation validation (struct_abi, data_change, no_fentry)
+    # ------------------------------------------------------------------
+
+    def _check_wrapper_preserves_signature(self, patch: str):
+        """Check that wrapper functions match the original function's return type.
+
+        Looks for REWRITE-NOTE markers and warns if a wrapper wraps
+        a function returning non-void without capturing the return value.
+        """
+        func_defs = re.findall(
+            r'^\+\s*(?:static\s+)?(\w+(?:\s*\*)?)\s*(\w+)\s*\(',
+            patch, re.MULTILINE
+        )
+        for ret_type, func_name in func_defs:
+            if func_name.startswith("__wrap_") or func_name.startswith("klp_"):
+                if ret_type not in ("void", "int", "bool"):
+                    self.issues.append(
+                        f"Wrapper '{func_name}' returns '{ret_type}' — "
+                        f"ensure all callers capture the return value"
+                    )
+                # Check wrapper returns the wrapped function's result
+                wrapper_body = self._extract_function_body(patch, func_name)
+                if wrapper_body and ret_type not in ("void",):
+                    if "return " not in wrapper_body and "return;" not in wrapper_body:
+                        self.issues.append(
+                            f"Wrapper '{func_name}' returns '{ret_type}' "
+                            f"but has no return statement"
+                        )
+
+    def _check_allocation_has_free(self, patch: str):
+        """Check that kzalloc/kmalloc in the patch has corresponding kfree."""
+        allocs = re.findall(r'\bk(?:zalloc|malloc|calloc)\s*\(', patch)
+        frees = re.findall(r'\bkfree\s*\(', patch)
+        if len(allocs) > len(frees) + 1:
+            # Allow one extra alloc if the comment indicates intentional leak
+            if not re.search(r'REWRITE-NOTE.*memory.*management', patch):
+                self.issues.append(
+                    f"Potential memory leak: {len(allocs)} alloc(s) vs "
+                    f"{len(frees)} free(s)"
+                )
+
+    def _check_no_leaked_shadow_var(self, patch: str):
+        """Check that klp_shadow_alloc has a corresponding klp_shadow_free."""
+        shadow_allocs = re.findall(r'\bklp_shadow_alloc\s*\(', patch)
+        shadow_frees = re.findall(r'\bklp_shadow_free\s*\(', patch)
+        if len(shadow_allocs) > len(shadow_frees):
+            # Check if post_unpatch callback is defined
+            if not re.search(r'klp_callbacks|post_unpatch|post_patch', patch):
+                self.issues.append(
+                    f"Shadow variable leak: {len(shadow_allocs)} alloc(s) vs "
+                    f"{len(shadow_frees)} free(s). Add post_unpatch cleanup."
+                )
+
+    @staticmethod
+    def _extract_function_body(patch: str, func_name: str) -> str:
+        """Extract the body of a function definition from a diff hunk."""
+        lines = patch.split("\n")
+        in_func = False
+        brace_depth = 0
+        body_lines = []
+        for i, line in enumerate(lines):
+            if not in_func:
+                if func_name in line and "(" in line and ")" in line:
+                    in_func = True
+                    brace_depth = 0
+                    continue
+            if in_func:
+                stripped = line.lstrip("+").lstrip("-").lstrip()
+                body_lines.append(stripped)
+                brace_depth += stripped.count("{") - stripped.count("}")
+                if brace_depth <= 0 and stripped.endswith(";") and i > 0:
+                    continue
+                if brace_depth <= 0:
+                    break
+        return "\n".join(body_lines)

@@ -33,7 +33,7 @@
 
 本设计围绕一个固定目标展开：Anolis OS ANCK `6.6.102-5.2.an23.x86_64`。这意味着后续所有构建依赖、`kernel-devel`、debuginfo、source package、`vmlinux`、VM 验证环境和报告字段都必须围绕该版本组织。
 
-智能体平台侧以 Qwen/百炼为主要大模型能力来源，通过 MCP/HTTP 服务接入本地构建与验证流程。云侧承载方案可以使用 Function Compute 自定义镜像，但它只负责服务封装和调度，不替代核心构建逻辑。
+智能体平台侧以 DeepSeek/LLM为主要大模型能力来源，通过 MCP/HTTP 服务接入本地构建与验证流程。云侧承载方案可以使用 Function Compute 自定义镜像，但它只负责服务封装和调度，不替代核心构建逻辑。
 
 ### 1.2 背景
 
@@ -54,7 +54,7 @@ Linux livepatch 机制提供了另一条路径。它允许系统在运行期间�
 1. 检索自动化：系统从 CVE 编号出发，查询 NVD、Linux CVE announce、Linux stable 等来源，定位候选修复 commit，并记录证据和置信度。
 2. patch 结构化：系统不能只把 patch 当作文本文件，而要解析受影响文件、hunk、函数、增删行、上下文和 kpatch 风险标签，形成 `patch_ir.json`。
 3. 构建闭环：系统在固定环境中调用 `kpatch-build`，并把成功产物或失败日志保存下来。失败不能只看最后一行，而要归因到具体阶段。
-4. 自动改写：系统采用规则优先、LLM 辅助的方式。确定性问题由规则处理，复杂日志解释和候选改写方案由 Qwen/百炼辅助。
+4. 自动改写：系统采用规则优先、LLM 辅助的方式。确定性问题由规则处理，复杂日志解释和候选改写方案由 DeepSeek/LLM辅助。
 5. 运行验证与报告：系统在 Anolis OS 23.4 VM 上验证 `.ko` 的加载、状态、卸载和必要的最小回归结果，并把结论写入结构化报告。
 
 ### 1.4 术语说明
@@ -65,7 +65,7 @@ patch 是源码差异文件，是后续解析、适配、改写和构建的核�
 
 livepatch 是 Linux 内核运行时热补丁机制，`kpatch-build` 是生成 livepatch 模块的核心工具。`fentry` 是函数入口插桩机制，它决定部分函数是否具备可 hook 条件。
 
-MCP 在本文中指给百炼 Agent 暴露工具能力的模型上下文协议。Function Compute 指云侧自定义镜像承载方案，用于封装 MCP/HTTP 服务入口或任务调度层。
+MCP 在本文中指给LLM Agent 暴露工具能力的模型上下文协议。Function Compute 指云侧自定义镜像承载方案，用于封装 MCP/HTTP 服务入口或任务调度层。
 
 ## 第2章 问题需求分析
 
@@ -114,7 +114,7 @@ MCP 在本文中指给百炼 Agent 暴露工具能力的模型上下文协议。
 3. patch 获取。系统优先从 Linux stable commit 下载 patch；如果 stable commit 不明确，则尝试从邮件列表或本地 git 仓库生成 patch。
 4. patch 解析。系统要从 diff 中提取受影响文件、hunk、增删行、上下文、受影响函数和风险标签，并判断目标源码状态。
 5. 构建执行。系统调用 `kpatch-build`，捕获 stdout、stderr、返回码和产物路径。成功时保存 `.ko`、哈希和 `modinfo`；失败时保存完整日志。
-6. 失败归因和自动改写。失败类别至少包括 `patch_apply`、`compile`、`kpatch_limit`、`env_missing` 和 `verify`。规则库先判断是否可自动处理，规则不足时再请求 Qwen/百炼辅助。
+6. 失败归因和自动改写。失败类别至少包括 `patch_apply`、`compile`、`kpatch_limit`、`env_missing` 和 `verify`。规则库先判断是否可自动处理，规则不足时再请求 DeepSeek/LLM辅助。
 7. 运行验证。成功生成 `.ko` 后，系统要在 Anolis OS 23.4 VM 上确认 `uname -r` 匹配目标内核，然后执行加载、状态检查、最小功能验证或回归验证、卸载和 `dmesg` 收集。
 8. 服务化接入。CLI 闭环稳定后，再封装 MCP/HTTP 接口，包括 `submit_task`、`get_status`、`get_report` 和 `get_artifact`。
 
@@ -142,7 +142,7 @@ MCP 在本文中指给百炼 Agent 暴露工具能力的模型上下文协议。
 
 并非所有 CVE 都适合 livepatch。涉及结构体 ABI、大范围全局数据、初始化路径或无法 hook 函数时，系统可以输出“不可热补丁化”或 `manual_required`。
 
-讨论课阶段优先完成本地 CLI 闭环。MCP/HTTP、百炼和 Function Compute 是后续封装层，不应阻塞核心构建与验证能力。
+讨论课阶段优先完成本地 CLI 闭环。MCP/HTTP、LLM Agent 和 Function Compute 是后续封装层，不应阻塞核心构建与验证能力。
 
 ### 2.5 验收指标
 
@@ -162,8 +162,8 @@ MCP 在本文中指给百炼 Agent 暴露工具能力的模型上下文协议。
 
 本系统遵循五条原则。这里使用编号，是为了明确设计取舍。
 
-1. 规则优先，LLM 辅助。确定性错误模式由规则处理，复杂日志解释和候选改写由 Qwen/百炼辅助。LLM 不直接决定最终产物，所有建议都必须落到 patch diff、构建日志和验证证据上。
-2. 先闭环后智能。先打通本地 CLI，从 CVE 到报告形成可复现流程，再接入 MCP/HTTP、百炼 Agent 和 Function Compute。
+1. 规则优先，LLM 辅助。确定性错误模式由规则处理，复杂日志解释和候选改写由 DeepSeek/LLM辅助。LLM 不直接决定最终产物，所有建议都必须落到 patch diff、构建日志和验证证据上。
+2. 先闭环后智能。先打通本地 CLI，从 CVE 到报告形成可复现流程，再接入 MCP/HTTP、LLM Agent 和 Function Compute。
 3. 证据落盘。所有关键决策都写入 `state.json`、`attempt_N.json` 或 `report.json`。终端输出只用于观察，不作为唯一证据。
 4. 失败是有效结果。不可热补丁化、检索证据不足、环境缺失和语义无法确认都应被清晰报告。
 5. 每个 CVE 独立执行。工作目录、状态机、日志、产物和重试次数互相隔离，便于批处理和复盘。
@@ -192,12 +192,12 @@ flowchart LR
     Verifier --> Reporter
     State --> Store["工作目录与 JSON 状态"]
     Reporter --> Store
-    Bailian["百炼 Agent 应用"] --> MCP["MCP/HTTP 服务"]
+    Bailian["LLM Agent 应用"] --> MCP["MCP/HTTP 服务"]
     MCP --> FC["Function Compute 自定义镜像"]
     FC --> Entry
 ```
 
-这张图展示的是系统的最高层职责划分：用户或百炼应用只进入统一入口，真正的 CVE 检索、patch 处理、构建、归因、改写和验证都由 Agent 编排层调度。图中的关键闭环是“构建失败进入失败归因，失败归因再驱动改写”，这说明系统不是一次性构建脚本，而是带反馈的多轮修复流程。
+这张图展示的是系统的最高层职责划分：用户或 LLM Agent只进入统一入口，真正的 CVE 检索、patch 处理、构建、归因、改写和验证都由 Agent 编排层调度。图中的关键闭环是“构建失败进入失败归因，失败归因再驱动改写”，这说明系统不是一次性构建脚本，而是带反馈的多轮修复流程。
 
 ### 3.3 Agent 内部架构
 
@@ -217,7 +217,7 @@ State Manager 负责状态落盘。每次状态转换都记录时间、原因、
 
 Evidence Collector 负责收集证据。它把来源链接、原始响应、patch、diff、日志、哈希、`dmesg` 和验证命令返回码整理到工作目录。
 
-Rewrite Advisor 负责改写建议。它先查规则库，如果规则无法处理，再把必要的 patch 片段、错误片段和目标源码上下文交给 Qwen/百炼解释。它的输出不是自然语言结论，而是可审计的 `rewrite_plan.json` 和候选 patch。
+Rewrite Advisor 负责改写建议。它先查规则库，如果规则无法处理，再把必要的 patch 片段、错误片段和目标源码上下文交给 DeepSeek/LLM解释。它的输出不是自然语言结论，而是可审计的 `rewrite_plan.json` 和候选 patch。
 
 Verifier 负责运行验证。它在目标 VM 中确认内核版本、加载 `.ko`、检查 livepatch 状态、执行最小功能验证或回归验证，并卸载模块。
 
@@ -232,7 +232,7 @@ flowchart TB
         Router["Tool Router\n按阶段调用本地工具或外部数据源"]
         State["State Manager\n维护 state.json 与重试计数"]
         Evidence["Evidence Collector\n收集来源、日志、diff、验证证据"]
-        Advisor["Rewrite Advisor\n规则库 + Qwen/百炼建议"]
+        Advisor["Rewrite Advisor\n规则库 + DeepSeek/LLM建议"]
         Verifier["Verifier\n构建产物加载卸载验证"]
         Reporter["Reporter\n生成 report.json 与摘要"]
     end
@@ -263,7 +263,7 @@ flowchart TB
 3. 源码索引类工具负责理解目标 ANCK 源码。它们包括文件索引、函数索引、符号索引、ctags 查询、调用关系粗略分析，输出函数位置、上下文片段和 symbol metadata。
 4. 构建类工具负责准备环境并调用 `kpatch-build`。它们包括环境检查、构建执行、产物收集和 `modinfo` 读取，输出 `build_N.log`、`.ko`、哈希和环境记录。
 5. 失败归因类工具负责把日志转成结构化错因。它们包括 build 日志分类、verify 日志分类、错误片段抽取和规则命中，输出 `failure.json`。
-6. 改写类工具负责生成候选修复适配方案。它们包括规则改写、RAG 上下文检索、Qwen/百炼建议、语义审计和 diff 校验，输出 `rewrite_plan.json` 和 `attempt_N.patch`。
+6. 改写类工具负责生成候选修复适配方案。它们包括规则改写、RAG 上下文检索、DeepSeek/LLM建议、语义审计和 diff 校验，输出 `rewrite_plan.json` 和 `attempt_N.patch`。
 7. 验证与报告类工具负责运行时验证和最终交付。它们包括 VM 传输、加载、状态检查、卸载、`dmesg` 收集、报告汇总，输出 `verification.json`、`report.json` 和 `summary.json`。
 
 工具调用还需要统一超时和重试策略。网络检索类工具可以短重试；`kpatch-build` 这类长任务不应盲目重试，必须先分类失败原因；VM 验证如果因为连接异常失败，可以重试一次，但如果 `dmesg` 明确显示模块错误，就应进入验证失败归因。
@@ -297,8 +297,8 @@ Agent 工具不应设计成一个“万能执行命令”入口。更合理的�
 
 2. 第二类是 patch 工具。`fetch_patch(commit_or_url)` 下载或生成 `original.patch`。`parse_unified_diff(patch_path)` 解析 diff，生成文件列表、hunk、增删行和初步函数范围。`inspect_target_source(patch_ir, source_tree)` 在目标源码树中定位上下文，判断是否已经修复、部分修复或需要 backport。`check_patch_apply(patch_path, source_tree)` 只做 dry-run，不修改源码树，用于判断 patch 是否可应用。
 3. 第三类是构建工具。`prepare_build_env(kernel_version)` 检查 source、kernel-devel、debuginfo 和 `vmlinux` 是否齐全。`run_kpatch_build(patch_path, source_tree, vmlinux)` 执行构建并保存完整日志。`collect_build_artifact(build_dir)` 在成功时收集 `.ko`、哈希、大小和 `modinfo`。这类工具要限制可执行参数，不能让 Agent 任意拼 shell。
-4. 第四类是日志和失败归因工具。`classify_build_log(log_path)` 从 `build_N.log` 中提取失败阶段、错误信号、文件、函数、符号和 section。`classify_verify_log(log_path, dmesg_path)` 负责运行验证失败分类。`summarize_failure(failure_json)` 把结构化失败转为可读说明，供报告和百炼对话使用。
-5. 第五类是改写工具。`retrieve_context_for_rewrite(patch_ir, failure_json)` 为改写准备最小上下文。`propose_rewrite_with_rules(context)` 尝试规则改写。`propose_rewrite_with_llm(context)` 在规则不足时调用 Qwen/百炼给候选建议。`validate_rewrite(original_patch, new_patch, patch_ir)` 检查改写是否保留关键修复语义，并生成 `rewrite_plan.json`。
+4. 第四类是日志和失败归因工具。`classify_build_log(log_path)` 从 `build_N.log` 中提取失败阶段、错误信号、文件、函数、符号和 section。`classify_verify_log(log_path, dmesg_path)` 负责运行验证失败分类。`summarize_failure(failure_json)` 把结构化失败转为可读说明，供报告和 LLM 对话使用。
+5. 第五类是改写工具。`retrieve_context_for_rewrite(patch_ir, failure_json)` 为改写准备最小上下文。`propose_rewrite_with_rules(context)` 尝试规则改写。`propose_rewrite_with_llm(context)` 在规则不足时调用 DeepSeek/LLM给候选建议。`validate_rewrite(original_patch, new_patch, patch_ir)` 检查改写是否保留关键修复语义，并生成 `rewrite_plan.json`。
 6. 第六类是验证工具。`transfer_artifact_to_vm(ko_path)` 把 `.ko` 传入 Anolis OS 23.4 VM 并校验哈希。`load_livepatch(ko_path)` 执行加载。`check_livepatch_state()` 查询 livepatch 状态。`run_minimal_regression(cve_id)` 对可构造用例执行最小验证。`unload_livepatch(module)` 执行卸载。`collect_dmesg()` 保存关键内核日志。
 7. 第七类是索引与记忆工具。`build_source_index(source_tree)` 生成文件、函数、符号索引。`upsert_rag_chunk(chunk)` 把 chunk 写入 RAG 数据库。`retrieve_similar_cases(failure_json)` 检索相似失败案例。`promote_case_to_memory(report_json)` 只在验证通过或人工确认后，把案例沉淀为长期经验。
 
@@ -360,12 +360,12 @@ flowchart LR
     Source --> Evidence
     History --> Evidence
     Evidence --> Rerank["排序与裁剪"]
-    Rerank --> LLM["Qwen/百炼\n基于证据解释或建议"]
+    Rerank --> LLM["DeepSeek/LLM\n基于证据解释或建议"]
     LLM --> Decision["结构化建议\nfailure / rewrite / report"]
     Decision --> Validate["工具验证\ndry-run / build / verify"]
 ```
 
-这张图描述了 RAG 的实际执行方式：Planner 先把当前问题转成检索 query，再从外部资料、目标源码和项目记忆中取回证据。证据经过排序和裁剪后才交给 Qwen/百炼，模型输出的建议还必须经过 dry-run、build 或 verify 等工具验证，验证通过后才能影响状态机。
+这张图描述了 RAG 的实际执行方式：Planner 先把当前问题转成检索 query，再从外部资料、目标源码和项目记忆中取回证据。证据经过排序和裁剪后才交给 DeepSeek/LLM，模型输出的建议还必须经过 dry-run、build 或 verify 等工具验证，验证通过后才能影响状态机。
 
 #### 3.4.3 记忆设计
 
@@ -725,7 +725,7 @@ flowchart TB
         Module["livepatch .ko"]
     end
     subgraph Cloud["云侧封装"]
-        Bailian["百炼 Agent"]
+        Bailian["LLM Agent"]
         MCP["MCP/HTTP 服务"]
         FC["Function Compute\n自定义镜像"]
     end
@@ -741,7 +741,7 @@ flowchart TB
     FC --> Container
 ```
 
-这张部署图把开发、构建、验证和云侧封装分开。Fedora 负责开发和镜像构建，Anolis container 负责可复现构建，Anolis VM 负责真实内核验证，百炼、MCP/HTTP 和 Function Compute 只负责服务入口和调度。这个拆分可以避免把构建成功误认为运行验证成功。
+这张部署图把开发、构建、验证和云侧封装分开。Fedora 负责开发和镜像构建，Anolis container 负责可复现构建，Anolis VM 负责真实内核验证，LLM Agent、MCP/HTTP 和 Function Compute 只负责服务入口和调度。这个拆分可以避免把构建成功误认为运行验证成功。
 
 ## 第4章 详细设计与实施步骤
 
@@ -943,7 +943,7 @@ flowchart TD
 }
 ```
 
-如果规则无法分类，系统可以请求 Qwen/百炼解释错误片段。但模型输出仍要被规范化到上述字段中，并标记 `classifier: "llm_assisted"` 或类似字段。无法形成稳定 `reason_code` 时，应进入 `manual_required`，不能把不确定解释作为自动改写依据。
+如果规则无法分类，系统可以请求 DeepSeek/LLM解释错误片段。但模型输出仍要被规范化到上述字段中，并标记 `classifier: "llm_assisted"` 或类似字段。无法形成稳定 `reason_code` 时，应进入 `manual_required`，不能把不确定解释作为自动改写依据。
 
 错因还应进入长期失败模式库。每个经过人工确认或多次验证的失败模式，可以沉淀为 `failure_pattern`，供后续 RAG 和规则库召回。它不保存完整日志，只保存关键模式和处理策略。
 
@@ -1013,7 +1013,7 @@ flowchart LR
     B --> C{"命中确定性规则"}
     C -- "是" --> D["生成 rewrite_plan.json"]
     C -- "否" --> E["构造 LLM 上下文"]
-    E --> F["Qwen/百炼给出候选建议"]
+    E --> F["DeepSeek/LLM给出候选建议"]
     F --> G["规则校验与语义审计"]
     G --> H{"建议可接受"}
     H -- "否" --> I["manual_required"]
@@ -1209,23 +1209,23 @@ flowchart LR
 
 报告生成本身也要有失败处理。如果最后汇总阶段出错，系统应保留已有中间文件，并输出最小错误说明，避免因为最后一步异常导致前面所有证据丢失。
 
-### 4.12 MCP/HTTP 与百炼接入
+### 4.12 LLM Agent 接入
 
-MCP/HTTP 与百炼接入应放在本地 CLI 闭环稳定之后。服务化层负责把 CLI 能力暴露给百炼 Agent，但不改变核心构建流程。
+LLM Agent 接入应放在本地 CLI 闭环稳定之后。服务化层负责把 CLI 能力暴露给LLM Agent，但不改变核心构建流程。
 
 `submit_task` 创建任务和工作目录，返回 `task_id`。`get_status` 查询任务阶段、每个 CVE 当前状态和尝试轮次。`get_report` 返回 `summary.json` 或单 CVE `report.json`。`get_artifact` 返回任务目录内的 patch、日志、`.ko` 或验证证据路径。
 
-Function Compute 自定义镜像可以承载 MCP/HTTP 服务入口和依赖环境。需要注意的是，服务端必须做参数白名单校验，不允许任意 shell 命令；每个请求必须创建独立工作目录，限制并发和磁盘配额；百炼 Agent 只负责自然语言交互和报告摘要，不直接操作底层构建环境。
+Function Compute 自定义镜像可以承载 MCP/HTTP 服务入口和依赖环境。需要注意的是，服务端必须做参数白名单校验，不允许任意 shell 命令；每个请求必须创建独立工作目录，限制并发和磁盘配额；LLM Agent 只负责自然语言交互和报告摘要，不直接操作底层构建环境。
 
 ### 4.13 Agent 搭建实施步骤
 
-Agent 的搭建应从本地可运行的 CLI Agent 开始，而不是一开始就把所有能力放到百炼平台里。内核构建、日志解析、patch dry-run、VM 验证都依赖本地文件系统和目标环境，本地 Agent 更利于调试、复现和证据留存。
+Agent 的搭建应从本地可运行的 CLI Agent 开始，而不是一开始就把所有能力放到LLM 平台里。内核构建、日志解析、patch dry-run、VM 验证都依赖本地文件系统和目标环境，本地 Agent 更利于调试、复现和证据留存。
 
 第一阶段搭建本地 Agent。它包含 Planner、Tool Router、State Manager、Evidence Collector、Rewrite Advisor、Verifier 和 Reporter 七个组件。每个组件先以普通 Python 模块实现，通过 `run --cves ...` 串起来。这个阶段不要求大模型参与所有步骤，优先保证状态流转和工具调用稳定。
 
 第二阶段接入 LLM。LLM 只放在三个位置：复杂失败解释、改写候选建议、报告摘要生成。CVE 检索、patch 应用检查、构建执行和 VM 验证仍由确定性工具完成。这样可以避免 Agent 把不可验证的语言推理当作真实执行结果。
 
-第三阶段封装 MCP/HTTP。等本地 CLI 能稳定输出 `report.json` 后，再把 CLI 包成服务。MCP tool 可以映射到 `submit_task`、`get_status`、`get_report`、`get_artifact`。百炼 Agent 调用这些 tool 时，只负责交互和解释报告，不直接拼接底层命令。
+第三阶段封装 MCP/HTTP。等本地 CLI 能稳定输出 `report.json` 后，再把 CLI 包成服务。MCP tool 可以映射到 `submit_task`、`get_status`、`get_report`、`get_artifact`。LLM Agent 调用这些 tool 时，只负责交互和解释报告，不直接拼接底层命令。
 
 本地 Agent 的一次执行可以按下面的顺序实现：
 
@@ -1237,7 +1237,7 @@ Agent 的搭建应从本地可运行的 CLI Agent 开始，而不是一开始就
 6. `Rewrite Advisor` 只在失败可重试时参与。
 7. `Reporter` 汇总单 CVE 报告和整批摘要。
 
-这个顺序的好处是每一步都可以单独测试。即使暂时没有接入百炼，也能先证明本地流程可用。
+这个顺序的好处是每一步都可以单独测试。即使暂时没有接入 LLM Agent，也能先证明本地流程可用。
 
 实现时可以按模块目录组织 Agent 代码。`agent/planner.py` 负责状态判断，`agent/tools/` 保存白名单工具封装，`agent/state.py` 负责 JSON 读写，`agent/rag/` 保存索引、召回和 evidence pack 逻辑，`agent/rewrite.py` 负责规则与 LLM 建议整合，`agent/verify.py` 负责 VM 验证，`agent/report.py` 负责报告生成。
 
@@ -1677,7 +1677,7 @@ pytest tests/prompt/test_failure_prompt.py
 pytest tests/prompt/test_rewrite_prompt.py
 ```
 
-正式接入 Qwen/百炼后，prompt 测试分两层：fixture 层验证模板和 schema，在线层只做抽样验证，不把实时模型输出作为唯一验收依据。
+正式接入 DeepSeek/LLM后，prompt 测试分两层：fixture 层验证模板和 schema，在线层只做抽样验证，不把实时模型输出作为唯一验收依据。
 
 ### 5.7 端到端样例
 
@@ -1793,7 +1793,7 @@ gantt
     规则改写、Prompt 与 LLM 接口        :c1, after b4, 1d
     加载卸载验证与 report.json         :c2, after c1, 1d
     section 集成答辩
-    MCP/HTTP 原型、百炼接入与答辩材料  :d1, after c2, 1d
+    MCP/HTTP 原型、LLM Agent 接入与答辩材料  :d1, after c2, 1d
 ```
 
 这张甘特图给出项目推进顺序。前半段先解决环境、工具链和最小样例，保证本地构建基础可靠；中段实现 CLI、检索、解析、构建和日志分类，形成本地闭环；后半段再接入规则改写、LLM、验证和 MCP/HTTP 服务化。这个顺序可以降低风险，避免在环境尚未稳定时过早投入云侧封装。
@@ -1818,7 +1818,7 @@ gantt
 
 第 8 天完成运行验证和报告生成，在 Anolis OS 23.4 VM 中加载、卸载 `.ko`，保存 `verification.json`、`dmesg`、单 CVE `report.json` 和批任务 `summary.json`。
 
-第 9 天完成服务封装和答辩材料，提供 MCP/HTTP 原型，接入百炼 Agent 演示路径，整理成功链、可改写失败链、不可改写失败链、实验评价指标和演示脚本。
+第 9 天完成服务封装和答辩材料，提供 MCP/HTTP 原型，接入LLM Agent 演示路径，整理成功链、可改写失败链、不可改写失败链、实验评价指标和演示脚本。
 
 答辩前整理成功案例、失败案例、架构说明、演示脚本和文档材料。
 
@@ -1840,9 +1840,9 @@ gantt
 
 ## 总结
 
-本文将“内核 CVE 热补丁自动生成智能体”的讨论课路线整理为叙述式详细设计说明书。设计重点不是单次调用 `kpatch-build`，而是把 CVE 检索、patch 获取、patch IR、修改信息抽取、目标内核适配、构建失败归因、规则与 Qwen/百炼辅助改写、运行验证、测试验收和结构化报告串成可复现闭环。
+本文将“内核 CVE 热补丁自动生成智能体”的讨论课路线整理为叙述式详细设计说明书。设计重点不是单次调用 `kpatch-build`，而是把 CVE 检索、patch 获取、patch IR、修改信息抽取、目标内核适配、构建失败归因、规则与 DeepSeek/LLM辅助改写、运行验证、测试验收和结构化报告串成可复现闭环。
 
-后续实施应坚持本地 CLI 优先：先确保 Fedora x86_64 开发环境、Anolis OS 23.4 container 构建环境、Anolis OS 23.4 VM 验证环境可运行，并准备围绕 `change_units.json`、`failure.json` 和 `rewrite_plan.json` 的核心测试样例，再逐步接入 MCP/HTTP、百炼 Agent 和 Function Compute。对于无法安全热补丁化的 CVE，系统应输出明确失败原因和证据，而不是为了成功率牺牲修复语义。
+后续实施应坚持本地 CLI 优先：先确保 Fedora x86_64 开发环境、Anolis OS 23.4 container 构建环境、Anolis OS 23.4 VM 验证环境可运行，并准备围绕 `change_units.json`、`failure.json` 和 `rewrite_plan.json` 的核心测试样例，再逐步接入 MCP/HTTP、LLM Agent 和 Function Compute。对于无法安全热补丁化的 CVE，系统应输出明确失败原因和证据，而不是为了成功率牺牲修复语义。
 
 ## 参考资料
 
@@ -1853,7 +1853,7 @@ gantt
 5. Linux CVE announce mailing list：https://lore.kernel.org/linux-cve-announce/
 6. NVD CVE database：https://nvd.nist.gov/
 7. Anolis OS 23.4 镜像与目标内核相关软件包说明：见本仓库 README.md。
-8. 阿里云百炼平台 Agent 与自定义 MCP 服务文档：见本仓库 README.md 参考资料。
+8. 阿里云LLM 平台 Agent 与自定义 MCP 服务文档：见本仓库 README.md 参考资料。
 
 ## 附录
 

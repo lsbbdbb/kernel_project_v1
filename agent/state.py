@@ -10,7 +10,8 @@ VALID_STATES = [
     "TaskCreated", "CveResolved", "PatchFetched", "PatchAnalyzed",
     "TargetChecked", "PatchApplied", "BuildRunning", "BuildSucceeded",
     "BuildFailed", "FailureClassified", "RewritePrepared", "ManualRequired",
-    "Failed", "LoadTesting", "Verified", "VerifyFailed", "ReportWritten"
+    "Failed", "Skipped", "LoadTesting", "Verified", "VerifyFailed", "ReportWritten",
+    "FixEnvironment"
 ]
 
 VALID_FINAL_STATUSES = ["success", "failed", "manual_required", "skipped"]
@@ -22,6 +23,8 @@ class StateManager:
     def __init__(self, workdir: str):
         self.workdir = workdir
         self.run_config_path = os.path.join(workdir, "run_config.json")
+        self._cached_run_config: Optional[Dict] = None
+        self._cached_source_dir: Optional[str] = None
 
     def init_run_config(self, cve_ids: List[str], kernel_version: str,
                         max_attempts: int = 5) -> Dict:
@@ -36,7 +39,14 @@ class StateManager:
         return config
 
     def get_run_config(self) -> Dict:
-        return self._read_json(self.run_config_path)
+        if self._cached_run_config is not None:
+            return self._cached_run_config
+        self._cached_run_config = self._read_json(self.run_config_path)
+        return self._cached_run_config
+
+    def get_kernel_version(self) -> str:
+        """Convenience: get kernel version from cached run config."""
+        return self.get_run_config().get("kernel_version", "6.6.102-5.2.an23.x86_64")
 
     def init_cve_state(self, cve_id: str) -> Dict:
         cve_dir = os.path.join(self.workdir, cve_id)

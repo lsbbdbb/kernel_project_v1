@@ -86,43 +86,6 @@ class FailureClassifier:
             "retryable": False, "next_action": "fix_environment",
         },
         {
-            "pattern_id": "env.source_permission", "stage": "env_check",
-            "category": "env_missing", "reason_code": "source_permission_denied",
-            "matchers": [r"Permission denied", r"Operation not permitted"],
-            "retryable": False, "next_action": "fix_environment",
-        },
-        {
-            "pattern_id": "env.git_ownership", "stage": "env_check",
-            "category": "env_missing", "reason_code": "git_unsafe_ownership",
-            "matchers": [r"detected dubious ownership", r"safe\.directory"],
-            "retryable": False, "next_action": "fix_environment",
-        },
-        {
-            "pattern_id": "env.kernel_release_mismatch", "stage": "env_check",
-            "category": "env_missing", "reason_code": "kernel_mismatch",
-            "matchers": [r"kernel release mismatch"],
-            "retryable": False, "next_action": "fix_environment",
-        },
-        {
-            "pattern_id": "env.setlocalversion_unsupported", "stage": "env_check",
-            "category": "env_missing", "reason_code": "setlocalversion_incompatible",
-            "matchers": [r"Usage: ./scripts/setlocalversion", r"--save-scmversion"],
-            "retryable": False, "next_action": "fix_environment",
-        },
-        {
-            "pattern_id": "config.module_disabled", "stage": "config_check",
-            "category": "config", "reason_code": "module_disabled",
-            "matchers": [r"no changed objects found"],
-            "retryable": False, "next_action": "skip",
-        },
-        {
-            "pattern_id": "env.syncconfig", "stage": "env_check",
-            "category": "env_missing", "reason_code": "syncconfig",
-            "matchers": [r"Error during sync of the configuration",
-                         r"syncconfig", r"include/config/auto\.conf"],
-            "retryable": True, "next_action": "fix_environment",
-        },
-        {
             "pattern_id": "compile.undefined_symbol", "stage": "build",
             "category": "compile", "reason_code": "undefined_symbol",
             "matchers": [r"undefined reference", r"undefined symbol"],
@@ -148,14 +111,6 @@ class FailureClassifier:
             return failure
         with open(build_log_path) as f:
             log_content = f.read()
-
-        # Deep parsing: extract additional structured info from log
-        deep_parse = {
-            "crc_changes": self._parse_crc_changes(log_content),
-            "section_changes": self._parse_section_changes(log_content),
-            "compile_errors": self._parse_compile_errors(log_content),
-        }
-
         for pattern in self.load_patterns():
             for matcher in pattern["matchers"]:
                 match = re.search(matcher, log_content, re.IGNORECASE)
@@ -177,7 +132,6 @@ class FailureClassifier:
                         "signals": signals, "location": location,
                         "related_inputs": {"build_log": build_log_path},
                         "classified_at": datetime.now(timezone.utc).isoformat(),
-                        "deep_parse": deep_parse,
                     }
                     cve_dir = os.path.join(self.workdir, self.cve_id)
                     with open(os.path.join(cve_dir, "failure.json"), "w") as f:
@@ -192,7 +146,6 @@ class FailureClassifier:
             "signals": [{"pattern": "unrecognized", "source": build_log_path}],
             "location": {}, "related_inputs": {"build_log": build_log_path},
             "classified_at": datetime.now(timezone.utc).isoformat(),
-            "deep_parse": deep_parse,
         }
         cve_dir = os.path.join(self.workdir, self.cve_id)
         with open(os.path.join(cve_dir, "failure.json"), "w") as f:
@@ -214,73 +167,6 @@ class FailureClassifier:
     @staticmethod
     def _find_line_number(content: str, pos: int) -> int:
         return content[:pos].count("\n") + 1
-
-    # ------------------------------------------------------------------
-    # Deep parsing: CRC changes, section changes, compile error locations
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _parse_crc_changes(log: str) -> list:
-        """Extract struct CRC mismatch details from kpatch-build log."""
-        results = []
-        for m in __import__('re').finditer(
-            r'CRC of\s+(?:struct\s+)?(\w+)\s+changed\s+from\s+0x([0-9a-fA-F]+)\s+to\s+0x([0-9a-fA-F]+)',
-            log
-        ):
-            results.append({
-                "struct": m.group(1),
-                "old_crc": m.group(2),
-                "new_crc": m.group(3),
-                "change_type": "crc_mismatch",
-            })
-        for m in __import__('re').finditer(
-            r'struct\s+(\w+)\s+size\s+changed\s+from\s+(\d+)\s+to\s+(\d+)',
-            log
-        ):
-            results.append({
-                "struct": m.group(1),
-                "old_size": int(m.group(2)),
-                "new_size": int(m.group(3)),
-                "change_type": "size_change",
-            })
-        return results
-
-    @staticmethod
-    def _parse_section_changes(log: str) -> list:
-        """Extract section change details from kpatch-build log."""
-        results = []
-        for m in __import__('re').finditer(
-            r'section\s+(\S+)\s+(?:change|mismatch|diff)',
-            log, __import__('re').IGNORECASE
-        ):
-            ctx_start = max(0, m.start() - 200)
-            ctx = log[ctx_start:m.end() + 100]
-            module = ""
-            mod_m = __import__('re').search(r'(?:module|insmod|for)\s+(\S+\.ko)', ctx)
-            if mod_m:
-                module = mod_m.group(1)
-            results.append({
-                "section": m.group(1),
-                "module": module,
-            })
-        return results
-
-    @staticmethod
-    def _parse_compile_errors(log: str) -> list:
-        """Extract file:line:col compilation errors from build log."""
-        results = []
-        for m in __import__('re').finditer(
-            r'^([^\s]+\.(?:c|h)):(\d+)(?::(\d+))?:\s+(error|warning|note):\s+(.+)',
-            log, __import__('re').MULTILINE
-        ):
-            results.append({
-                "file": m.group(1),
-                "line": int(m.group(2)),
-                "column": int(m.group(3)) if m.group(3) else None,
-                "severity": m.group(4),
-                "message": m.group(5).strip(),
-            })
-        return results
 
     def classify_verify_log(self, verify_log_path: str, dmesg_path: Optional[str] = None) -> Dict:
         failure = {

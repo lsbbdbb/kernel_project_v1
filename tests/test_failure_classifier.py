@@ -54,6 +54,61 @@ class TestFailureClassifier:
         failure = classifier.classify(log_path)
         assert failure["reason_code"] == "unrecognized"
 
+    def test_classify_disabled_module_as_skip(self):
+        log_path = os.path.join(self.tmpdir, "build.log")
+        with open(log_path, "w") as f:
+            f.write("ERROR: no changed objects found; unable to build livepatch\n")
+        classifier = FailureClassifier(self.tmpdir, "CVE-2026-0001")
+
+        failure = classifier.classify(log_path)
+
+        assert failure["category"] == "config"
+        assert failure["reason_code"] == "module_disabled"
+        assert failure["next_action"] == "skip"
+
+    def test_classify_source_permission_as_environment_failure(self):
+        log_path = os.path.join(self.tmpdir, "build.log")
+        with open(log_path, "w") as f:
+            f.write("mv: cannot stat '/kernel-src/linux/vmlinux': Permission denied\n")
+        classifier = FailureClassifier(self.tmpdir, "CVE-2026-0001")
+
+        failure = classifier.classify(log_path)
+
+        assert failure["category"] == "env_missing"
+        assert failure["reason_code"] == "source_permission_denied"
+        assert failure["retryable"] is False
+
+    def test_classify_bind_mount_git_ownership_as_environment_failure(self):
+        log_path = os.path.join(self.tmpdir, "build.log")
+        with open(log_path, "w") as f:
+            f.write("fatal: detected dubious ownership in repository at '/kernel-src/linux'\n")
+        classifier = FailureClassifier(self.tmpdir, "CVE-2026-0001")
+
+        failure = classifier.classify(log_path)
+
+        assert failure["category"] == "env_missing"
+        assert failure["reason_code"] == "git_unsafe_ownership"
+
+    def test_classify_kernel_release_mismatch_as_environment_failure(self):
+        log_path = os.path.join(self.tmpdir, "build.log")
+        with open(log_path, "w") as f:
+            f.write("ERROR: kernel release mismatch: expected target, got source\n")
+
+        failure = FailureClassifier(self.tmpdir, "CVE-2026-0001").classify(log_path)
+
+        assert failure["category"] == "env_missing"
+        assert failure["reason_code"] == "kernel_mismatch"
+
+    def test_classify_setlocalversion_incompatibility_as_environment_failure(self):
+        log_path = os.path.join(self.tmpdir, "build.log")
+        with open(log_path, "w") as f:
+            f.write("Usage: ./scripts/setlocalversion [--no-local] [srctree]\n")
+
+        failure = FailureClassifier(self.tmpdir, "CVE-2026-0001").classify(log_path)
+
+        assert failure["category"] == "env_missing"
+        assert failure["reason_code"] == "setlocalversion_incompatible"
+
     def test_failure_json_saved(self):
         log_path = os.path.join(self.tmpdir, "build.log")
         with open(log_path, "w") as f:

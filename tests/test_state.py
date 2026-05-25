@@ -46,6 +46,7 @@ class TestStateManager:
         assert "TaskCreated" in VALID_STATES
         assert "ReportWritten" in VALID_STATES
         assert "CveResolved" in VALID_STATES
+        assert "Skipped" in VALID_STATES
         assert len(VALID_STATES) > 10
 
     def test_valid_final_statuses(self):

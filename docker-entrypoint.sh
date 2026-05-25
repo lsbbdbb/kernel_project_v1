@@ -18,6 +18,11 @@ KERNEL_VERSION="${KERNEL_VERSION:-6.6.102-5.2.an23.x86_64}"
 KERNEL_BASE="$(echo "$KERNEL_VERSION" | cut -d. -f1)"
 SRC_DIR="${KERNEL_SRC:-/kernel-src/linux-${KERNEL_VERSION}}"
 
+# Fix git dubious ownership for mounted kernel source
+if [ -d "$SRC_DIR/.git" ]; then
+    git config --global --add safe.directory "$SRC_DIR" 2>/dev/null || true
+fi
+
 if [ -d "$SRC_DIR" ] && [ -f "$SRC_DIR/vmlinux" ]; then
     echo "[OK] Kernel source: $SRC_DIR"
     echo "[OK] vmlinux: $SRC_DIR/vmlinux"
@@ -40,10 +45,17 @@ case "${1:-test}" in
         exec /bin/bash
         ;;
     run)
-        echo ">>> Running agent with sample CVEs..."
+        echo ">>> Running agent with sample CVEs (LLM optional)..."
         exec python3 -m agent --cves sample_cves.txt \
             --workdir "${WORKDIR:-/tmp/test_workspace}" \
             --kernel-version "$KERNEL_VERSION"
+        ;;
+    run-no-llm)
+        echo ">>> Running agent with sample CVEs (rule-only mode)..."
+        exec python3 -m agent --cves sample_cves.txt \
+            --workdir "${WORKDIR:-/tmp/test_workspace}" \
+            --kernel-version "$KERNEL_VERSION" \
+            --no-llm
         ;;
     *)
         exec "$@"

@@ -11,3 +11,41 @@
 - Ran full test suite: 53 passed.
 - Reviewed Phase 3 scope from README_PLAN and inspected `agent/planner.py`, CLI LLM wiring in `agent/__main__.py`, reporter behavior, and existing tests.
 - Ran full test suite during Phase 3 review: 53 passed.
+
+## 2026-05-25
+- Audited the newer Phase 3-5 implementation against `README_PLAN.md`.
+- Verified current suite: `pytest -q` reports 67 passed.
+- Ran `bash scripts/verify_all_phases.sh`: 72 checks passed, 0 failed.
+- Ran `bash scripts/verify_phase5_rag.sh`: YAML/API knowledge loading and representative retrieval succeeded.
+- Identified unresolved Phase 3/4 correctness and safety findings despite green validation scripts.
+- Repaired Phase 4 safety gates so an available LLM cannot auto-approve `struct_abi`/`no_fentry` rewrites.
+- Required validation for generated rule fallbacks and wired resolved local kernel source paths into applicability checking.
+- Fixed Phase 3 build log indexing and CLI provider override configuration.
+- Updated regression tests and the Phase verification assertion; focused tests passed (24), full pytest passed (72), Phase 0-5 script passed (72/72), and Phase 5 RAG script passed.
+- Added a real substantive hunk-conflict regression: the upstream-style patch fails on divergent target context, while an LLM rewrite must pass semantic and Git applicability validation before being rebuilt.
+- Fixed LLM fenced-diff trailing newline preservation and stopped failed `git apply --check` results from entering `kpatch-build` as if applied.
+- Added Makefile plus `.config` target awareness and `config.module_disabled` skip handling; verified actual Anolis source disables Bluetooth and ublk targets in this tree.
+- Wired runtime verification to `--vm-host` with remote `insmod`, livepatch sysfs visibility, `rmmod`, and `dmesg` capture; added an opt-in validated `--vm-poc` executable path for authorized functional checks while keeping real VM/PoC execution explicitly pending an available VM.
+- Verification after acceptance repairs: full pytest passed (84), Phase 0-5 verification passed (72/72), and Phase 5 RAG script passed.
+- Follow-up review reproduced a locale-dependent hunk-failure regression reported from the terminal: Git emitted Chinese diagnostics while deterministic classifier patterns consumed English output.
+- Follow-up review also found that config short-circuiting must not skip a multi-file patch when only one optional target is disabled and another target remains build-relevant.
+- Forced Git applicability checks to C locale so localized stderr remains classifiable and added a locale regression to the hunk-failure test.
+- Limited CONFIG skip to patches whose complete target set is disabled and added mixed-target coverage.
+- Blocked LLM rewrites after deterministic non-retryable/skip classifications, and merged failed-build classification into existing rewrite attempt evidence.
+- Follow-up verification: full pytest passed (88) and Phase 0-5 verification passed (72/72). Global whitespace checking reports an unrelated modified `sample_cves.txt`, which was not overwritten.
+- Added an explicit remote-kernel match gate before module loading; an Anolis VM running the wrong kernel can no longer be accepted or receive `insmod`.
+- Verified the kernel-match addition with focused tests and full pytest: 89 passed.
+- Exercised real sample CVEs inside the Anolis builder container. Initial runs revealed mount labeling and Git ownership issues, then the deeper build-baseline mismatch and legacy `setlocalversion` incompatibility.
+- Added `:Z` kernel-source mounts and entrypoint `safe.directory` setup; removed an embedded compose API key in favor of environment injection and ran acceptance commands with LLM credentials cleared.
+- Tightened planner safety precedence so nonretryable, skip, and environment decisions cannot be elevated to rewrites by an LLM or by a first-failure fallback.
+- Stopped invalid upstream-fetch placeholders from entering parsing/build, rejected patch files without a unified diff, and added a pre-build `kernelrelease` match gate.
+- Removed destructive/silent kernel-tree cleaning and implicit config regeneration from the build action; source remediation now needs an explicit, observable step.
+- Real-run result in `run_acceptance_20260525_r4/`: `CVE-2026-43284=manual_required` with `kernel_mismatch`, `CVE-2026-43018=failed` from upstream network failure, and `CVE-2025-38182=skipped` via disabled `CONFIG_BLK_DEV_UBLK`.
+- Verification after these repairs: focused tests passed (41), full pytest passed (102), and edited-file whitespace checks passed.
+- VM runtime acceptance is blocked pending SSH host-key confirmation and construction of a kernel baseline whose release exactly matches `6.6.102-5.2.an23.x86_64`.
+- User confirmed the VM ED25519 host key and installed SSH public-key authentication; noninteractive `uname`, `sudo -n`, and `CONFIG_LIVEPATCH=y` probes now succeed.
+- Queried VM package/build state: running kernel is installed, but matching `kernel-devel`/debuginfo are absent and its build symlink is dangling.
+- Compared VM config to current source config and found material ABI/build metadata differences (`CONFIG_MODVERSIONS`, module signing, BTF, and localversion policy); treating the existing defconfig `vmlinux` as non-loadable evidence only.
+- Downloaded the exact Anolis source/devel/debuginfo RPMs and extracted VM-matching configuration, symbol files, source tree, and debuginfo `vmlinux` under `acceptance_vm_20260525/`.
+- Prepared an isolated RPM source baseline following the vendor spec (`EXTRAVERSION` release stamping) plus a recorded compatibility branch for the installed kpatch/setlocalversion interface mismatch.
+- Ran `olddefconfig` and `modules_prepare` in the build container under the host UID; `kernelrelease` now matches the VM exactly. Only the compiler package text differs (`gcc ...-16` in the official build versus `...-17` in the container).

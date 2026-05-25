@@ -34,8 +34,10 @@ class Planner:
             "LoadTesting": {"action": "check_verify_result", "next_state": None},
             "VerifyFailed": {"action": "classify_verify_failure", "next_state": "FailureClassified"},
             "Verified": {"action": "write_report", "next_state": "ReportWritten"},
+            "FixEnvironment": {"action": "run_build", "next_state": "BuildRunning"},
             "ManualRequired": {"action": "done", "next_state": None, "reason": "Manual intervention required"},
             "Failed": {"action": "done", "next_state": None, "reason": "Max attempts reached or unrecoverable"},
+            "Skipped": {"action": "done", "next_state": None, "reason": "Patch targets code disabled by kernel config"},
         }
 
         if current in transitions:
@@ -58,7 +60,7 @@ class Planner:
         return {"action": "unknown", "reason": f"Unknown state: {current}", "source": "rule"}
 
     def _decide_after_classification(self, state: Dict) -> Dict:
-        """After failure classification, decide: retry with rewrite or give up."""
+        """After failure classification, decide: fix env, retry, rewrite, or give up."""
         attempt = state.get("attempt", 0)
         max_attempts = state.get("max_attempts", 5)
 
@@ -69,6 +71,40 @@ class Planner:
             if os.path.exists(failure_path):
                 with open(failure_path) as f:
                     failure = json.load(f)
+                # fix_environment: run env fix once then retry build
+                if failure.get("next_action") == "fix_environment":
+                    fix_key = f"{cve_id}_fix_attempted"
+                    fix_attempted = getattr(self, fix_key, False)
+                    if not fix_attempted:
+                        setattr(self, fix_key, True)
+                        return {
+                            "action": "fix_environment",
+                            "next_state": "FixEnvironment",
+                            "reason": f"Fixing environment: {failure.get('reason_code', 'unknown')}",
+                            "source": "rule",
+                        }
+                    # Fix was already attempted but build still fails —
+                    # treat as non-retryable and move on
+                    return {
+                        "action": "done",
+                        "next_state": "ManualRequired",
+                        "reason": f"Environment fix did not resolve: {failure.get('reason_code', 'unknown')}",
+                        "source": "rule",
+                    }
+                if failure.get("next_action") == "skip":
+                    return {
+                        "action": "done",
+                        "next_state": "Skipped",
+                        "reason": f"Skipped: {failure.get('reason_code', 'not applicable')}",
+                        "source": "rule",
+                    }
+                if failure.get("next_action") == "manual_required":
+                    return {
+                        "action": "done",
+                        "next_state": "ManualRequired",
+                        "reason": f"Manual review required: {failure.get('reason_code', 'unknown')}",
+                        "source": "rule",
+                    }
                 if not failure.get("retryable", True):
                     return {
                         "action": "done",
@@ -122,8 +158,12 @@ class LLMPlanner(Planner):
         state = self.state_mgr.get_state(cve_id)
         current = state.get("state", "TaskCreated")
 
-        # BuildFailed must be classified first so failure.json exists.
-        if current in ("FailureClassified", "VerifyFailed"):
+        if current == "FailureClassified":
+            rule_decision = super().decide_next(cve_id)
+            # The model may refine a rewrite choice, but cannot override
+            # environment, skip, or manual-review safety decisions.
+            if rule_decision.get("action") != "prepare_rewrite":
+                return rule_decision
             llm_error = None
             try:
                 payload = self._decision_payload(cve_id, state)
@@ -149,7 +189,7 @@ class LLMPlanner(Planner):
             except Exception as exc:
                 llm_error = f"LLM chat failed: {exc}"
 
-            decision = super().decide_next(cve_id)
+            decision = rule_decision
             if llm_error:
                 decision["llm_error"] = llm_error
             return decision
@@ -189,6 +229,7 @@ class LLMPlanner(Planner):
 
         return {
             "cve_id": cve_id,
+            "state": state.get("state"),
             "attempt": attempt,
             "max_attempts": max_attempts,
             "previous_attempts": history,

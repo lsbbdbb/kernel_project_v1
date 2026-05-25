@@ -5,7 +5,6 @@ from typing import Optional
 
 
 DEFAULT_BASE_URLS = {
-    "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
     "deepseek": "https://api.deepseek.com",
     "openai": None,
     "ollama": "http://localhost:11434/v1",
@@ -32,13 +31,12 @@ class LLMConfig:
     def from_env(cls) -> "LLMConfig":
         provider = cls._provider_from_env()
         default_models = {
-            "qwen": "qwen-max",
             "deepseek": "deepseek-v4-pro",
             "openai": "gpt-4o-mini",
             "ollama": "llama3.1",
         }
         default_model = default_models.get(provider, "gpt-4o-mini")
-        model = cls.normalize_model(os.getenv("LLM_MODEL") or os.getenv("DASHSCOPE_MODEL") or default_model)
+        model = cls.normalize_model(os.getenv("LLM_MODEL") or default_model)
         api_key = cls._api_key_from_env(provider)
         base_url = os.getenv("LLM_BASE_URL") or DEFAULT_BASE_URLS.get(provider)
 
@@ -58,8 +56,6 @@ class LLMConfig:
         if configured:
             return configured.strip().lower()
 
-        if os.getenv("DASHSCOPE_API_KEY"):
-            return "qwen"
         if os.getenv("DEEPSEEK_API_KEY"):
             return "deepseek"
         if os.getenv("OPENAI_API_KEY"):
@@ -71,8 +67,6 @@ class LLMConfig:
 
     @staticmethod
     def _api_key_from_env(provider: str) -> Optional[str]:
-        if provider == "qwen":
-            return os.getenv("DASHSCOPE_API_KEY") or os.getenv("LLM_API_KEY")
         if provider == "deepseek":
             return os.getenv("DEEPSEEK_API_KEY") or os.getenv("LLM_API_KEY")
         if provider == "openai":

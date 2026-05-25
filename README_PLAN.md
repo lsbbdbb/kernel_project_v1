@@ -2,7 +2,7 @@
 
 ## 当前状态
 
-项目是一套**内核 CVE 热补丁流水线框架**，包含完整的状态机、工具封装和测试覆盖（30 个测试全部通过），Docker 部署已就绪。
+项目是一套**内核 CVE 热补丁流水线框架**，包含完整的状态机、工具封装和测试覆盖（108 个测试全部通过），Docker 部署已就绪。
 
 但是核心的 AI 部分还没实现：
 
@@ -42,7 +42,7 @@ USAGE.md 明确要求：
 
 同时保持 `--no-llm` 模式，无 LLM 也能运行。
 
-LLM 后端选择：**通义千问/百炼**（DashScope OpenAI 兼容 API）。
+LLM 后端选择：**DeepSeek**（OpenAI 兼容 API）。
 
 ---
 
@@ -132,6 +132,9 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["test"]
+
+# 新增 run-no-llm 命令变体（在 docker-entrypoint.sh 中）
+# 规则模式：不依赖 API key，纯规则引擎
 ```
 
 #### 0.2 内核源码准备脚本
@@ -205,13 +208,29 @@ services:
       context: .
       dockerfile: Dockerfile
     volumes:
-      - .:/app
-      - ./kernel-src:/kernel-src
+      - .:/app:z
+      - ./kernel-src:/kernel-src:z
       - agent-output:/tmp/test_workspace
     working_dir: /app
-    command: ["python3", "-m", "agent", "--cves", "sample_cves.txt",
-              "--workdir", "/tmp/test_workspace",
-              "--kernel-version", "6.6.102-5.2.an23.x86_64"]
+    environment:
+      - KERNEL_SRC=/kernel-src/linux-6.6.102-5.2.an23.x86_64
+      - WORKDIR=/tmp/test_workspace
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+    command: ["run"]
+
+  agent-run-no-llm:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app:z
+      - ./kernel-src:/kernel-src:z
+      - agent-output:/tmp/test_workspace
+    working_dir: /app
+    environment:
+      - KERNEL_SRC=/kernel-src/linux-6.6.102-5.2.an23.x86_64
+      - WORKDIR=/tmp/test_workspace
+    command: ["run-no-llm"]
 ```
 
 #### 0.4 容器启动入口
@@ -257,6 +276,24 @@ case "${1:-test}" in
 esac
 ```
 
+#### 0.5 syncconfig 绕过（环境兼容层）
+
+**问题**: kpatch-build 设置 `CC=/usr/local/libexec/kpatch/kpatch-cc gcc`（含空格），内核 Kconfig 预处理函数无法正确解析，导致 `scripts/kconfig/conf --syncconfig` 始终退出。
+
+**解决**: 在 `_ensure_kernel_config()` 中 touch `include/config/auto.conf` 和 `auto.conf.cmd` 使其比 `.config` 新。内核 Makefile 的依赖检查认为配置已最新，跳过 syncconfig。
+
+```python
+# agent/__main__.py — _ensure_kernel_config 核心逻辑
+auto_conf = os.path.join(source_dir, "include/config/auto.conf")
+auto_conf_cmd = os.path.join(source_dir, "include/config/auto.conf.cmd")
+if os.path.isfile(auto_conf) and os.path.isfile(auto_conf_cmd):
+    for f in (auto_conf, auto_conf_cmd):
+        if os.path.getmtime(f) <= config_mtime:
+            os.utime(f, (min_new, min_new))
+```
+
+**验证**: kpatch-build build.log 显示 `LD vmlinux.o` 而非 syncconfig 错误。
+
 ### Phase 0 验证
 
 ```bash
@@ -268,7 +305,7 @@ docker compose build agent
 
 # Step 3: 运行测试
 docker compose up agent
-# 预期: 30 个测试通过 + 环境检查显示 [OK]
+# 预期: 108 个测试通过 + 环境检查显示 [OK]
 
 # Step 4: 进入容器验证环境
 docker compose run --rm agent-dev
@@ -329,10 +366,10 @@ class KnowledgeLoader:
 
 ```bash
 python -m pytest tests/ -v
-# 30 个测试全部通过
+# 108 个测试全部通过
 
 python -c "from agent.knowledge.loader import KnowledgeLoader; print(len(KnowledgeLoader.load_failure_patterns()))"
-# 输出: 9
+# 输出: 16
 ```
 
 ---
@@ -346,10 +383,10 @@ python -c "from agent.knowledge.loader import KnowledgeLoader; print(len(Knowled
 ```python
 @dataclass
 class LLMConfig:
-    provider: str = "qwen"          # qwen | openai | anthropic | ollama
-    model: str = "qwen-max"         # qwen-max / qwen-plus / qwen-turbo
-    api_key: Optional[str] = None   # 从环境变量 DASHSCOPE_API_KEY 读取
-    base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    provider: str = "deepseek"      # deepseek | openai | ollama
+    model: str = "deepseek-v4-pro"  # deepseek-v4-pro / deepseek-chat
+    api_key: Optional[str] = None   # 从环境变量 DEEPSEEK_API_KEY 读取
+    base_url: str = "https://api.deepseek.com"
     temperature: float = 0.3
     max_tokens: int = 4096
     timeout: int = 120
@@ -366,7 +403,7 @@ class LLMConfig:
 ```python
 class LLMClient:
     def __init__(self, config: LLMConfig):
-        # 用 OpenAI SDK 连接 DashScope
+        # 用 OpenAI SDK 连接 DeepSeek
         self.client = openai.OpenAI(
             api_key=config.api_key,
             base_url=config.base_url
@@ -438,8 +475,8 @@ LLM 介入的三个决策点：
 新增参数：
 
 - `--no-llm` 强制规则模式
-- `--llm-provider qwen` 指定后端
-- `--llm-model qwen-max` 指定模型
+- `--llm-provider deepseek` 指定后端
+- `--llm-model deepseek-v4-pro` 指定模型
 
 LLM 初始化 → 传给 LLMPlanner → 进入流水线。
 
@@ -555,19 +592,16 @@ RewriteAdvisor 在 `_llm_rewrite()` 中：
 
 ### Phase 5 验证
 
-```bash
-python -c "
-from agent.rag.knowledge_base import KnowledgeBase
-kb = KnowledgeBase()
-kb.load_yaml_rules()
-print(len(kb.documents))  # > 0
-"
+使用可执行验证脚本检查 RAG 知识库加载与检索：
 
-python -c "
-from agent.rag.retriever import KnowledgeRetriever
-# 检索 'api mismatch function arguments' 应返回相关 chunk
-"
+```bash
+bash scripts/verify_phase5_rag.sh
 ```
+
+脚本会执行以下验证：
+- 加载 YAML 规则和 kernel API 文档到 `KnowledgeBase`
+- 确认至少有一个知识块被加载
+- 对 `api mismatch function arguments` 进行检索，验证检索结果是否返回
 
 ---
 
@@ -584,14 +618,14 @@ from agent.rag.retriever import KnowledgeRetriever
 
 ### 6.2 Docker 更新
 
-- `Dockerfile`: 添加 `ENV DASHSCOPE_API_KEY=""`
+- `docker-compose.yml`: 支持从 `.env` 文件读入 API key
 - `docker-compose.yml`: 支持从 `.env` 文件读入 API key
 
 ### 6.3 E2E 验证（需要真实 API key）
 
 ```bash
-export DASHSCOPE_API_KEY="your-key"
-python -m agent --cves sample_cves.txt --workdir /tmp/e2e --llm-provider qwen
+export DEEPSEEK_API_KEY="your-key"
+python -m agent --cves sample_cves.txt --workdir /tmp/e2e --llm-provider deepseek
 # 验证:
 # - attempt_N.patch 内容不同于 original.patch
 # - report.json 中显示 source: "llm"
@@ -600,43 +634,58 @@ python -m agent --cves sample_cves.txt --workdir /tmp/e2e --llm-provider qwen
 
 ---
 
-## 文件变更总览
+## 文件变更总览（最终实现）
 
-### 新建 (17 个)
-
-```
-scripts/download_kernel_src.sh           # Phase 0: 龙蜥内核源码下载脚本
-docker-entrypoint.sh                     # Phase 0: 容器启动环境检查
-agent/knowledge/__init__.py
-agent/knowledge/loader.py
-agent/knowledge/kernel_api/kernel_6.6_api.yaml
-agent/llm/__init__.py
-agent/llm/config.py
-agent/llm/client.py
-agent/llm/prompts/__init__.py
-agent/llm/prompts/templates.py
-agent/rag/knowledge_base.py
-agent/rag/retriever.py
-agent/tools/semantic_validator.py
-tests/test_llm_client.py
-tests/test_prompts.py
-tests/test_rag.py
-tests/test_integration_llm.py
-```
-
-### 修改 (11 个)
+### 实际新建 (18+)
 
 ```
-Dockerfile                              # Phase 0: 换 Anolis OS 基础镜像 + kpatch 工具链
-docker-compose.yml                      # Phase 0: 挂载内核源码卷 + 环境变量
-agent/tools/kpatch_builder.py           # Phase 1: 添加 import shutil
+agent/knowledge/rag_knowledge/           # Phase 5: 6 篇 RAG 文档
+  ├── build_failures.md
+  ├── kernel_api_migration.md
+  ├── kpatch_faq.md
+  ├── livepatch_concepts.md
+  ├── patch_author_guide.md
+  └── rewrite_strategies.md
+agent/knowledge/kernel_api/kernel_6.6_api.yaml  # Phase 5: 内核 API 知识
+agent/tools/semantic_validator.py        # Phase 4: 改写语义验证
+agent/tools/kernel_config_checker.py     # Phase 1: 内核 config 探测
+scripts/download_kernel_src.sh          # Phase 0: 内核源码下载
+docker-entrypoint.sh                    # Phase 0: 容器入口
+scripts/verify_all_phases.sh            # Phase 6: 全阶段验证
+tests/test_main_paths.py                # Phase 6: 管道路径测试
+tests/test_llm_client.py                # Phase 6: LLM 客户端测试
+tests/test_rag.py                       # Phase 6: RAG 测试
+tests/test_integration_llm.py           # Phase 6: 集成测试
+tests/test_failure_classifier.py        # Phase 6: 分类器测试
+tests/test_rewrite_advisor.py           # Phase 6: 改写测试
+tests/test_knowledge_loader.py          # Phase 6: 知识加载测试
+tests/test_patch_parser.py              # Phase 6: 解析器测试
+```
+
+### 实际修改 (22+)
+
+```
+Dockerfile                              # Phase 0: 换 Anolis OS 镜像 + kpatch
+docker-compose.yml                      # Phase 0: 挂载 + 4 服务（+agent-run-no-llm）
+docker-entrypoint.sh                    # Phase 0: run-no-llm 变体
+agent/__main__.py                       # Phase 0-5: syncconfig 修复 + CLI + 编排
+agent/tools/kpatch_builder.py           # Phase 1: import shutil + 超时 + env
 agent/tools/failure_classifier.py       # Phase 1: YAML 加载 + fallback
-agent/tools/rewrite_advisor.py          # Phase 1+4: YAML 加载 + LLM 改写 + RAG 检索
-agent/planner.py                        # Phase 3: 新增 LLMPlanner
-agent/__main__.py                       # Phase 3: LLM 初始化 + 新 CLI 参数
-agent/rag/__init__.py                   # Phase 5: 替换空壳
-agent/knowledge/rules/failure_patterns.yaml  # Phase 1: 补全缺失模式
-requirements.txt                        # Phase 2: 添加 openai, rank-bm25
+agent/tools/rewrite_advisor.py          # Phase 1+4+5: 规则 + LLM + RAG
+agent/tools/cve_resolver.py             # Phase 0: 重试 + NVD 缓存
+agent/tools/patch_fetcher.py            # Phase 0: 磁盘缓存
+agent/tools/patch_parser.py             # Phase 2: 函数跟踪修复
+agent/tools/verifier.py                 # Phase 0: SSH 验证器
+agent/planner.py                        # Phase 3: LLMPlanner
+agent/state.py                          # Phase 0: 缓存机制
+agent/llm/config.py                     # Phase 2: 多 provider
+agent/knowledge/loader.py               # Phase 1: YAML 加载器
+agent/knowledge/rules/*.yaml            # Phase 1: 16 模式 + 6 策略
+requirements.txt                        # Phase 2: openai, rank-bm25
+tests/test_kpatch_builder.py            # Phase 6: builder 测试
+tests/test_state.py                     # Phase 6: 状态测试
+sample_cves.txt                         # Phase 0: 3 个有效 CVE
+.gitignore                              # Phase 0: 忽略 kernel-src
 ```
 
 ---
@@ -644,7 +693,7 @@ requirements.txt                        # Phase 2: 添加 openai, rank-bm25
 ## 核心设计原则
 
 1. **无 LLM 也能跑** — 每个 LLM 路径都有规则 fallback，`--no-llm` 保持原有行为
-2. **通义千问优先** — DashScope API 国内访问快，OpenAI 兼容协议
+2. **DeepSeek/OpenAI 兼容** — 通过统一 OpenAI 协议支持 DeepSeek 等后端
 3. **BM25 做检索** — 知识库小（几十条），不需要向量数据库或 embedding API
 4. **YAML 为知识源** — 改规则只需编辑 YAML 文件，不碰 Python 代码
 5. **提示词是 Python 函数** — 类型安全、可直接单测、参数清晰

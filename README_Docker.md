@@ -1,92 +1,113 @@
 # Docker 部署说明
 
-## 做了什么
+## 概述
 
-本项目 `kernel-livepatch-agent` 已通过 Docker Desktop 完成容器化部署，包含：
+项目 Docker 环境基于 **Anolis OS 23**（龙蜥操作系统），预装 `kpatch` / `kpatch-build` 工具链和 Python 依赖，挂载本机内核源码树，开箱即用。
 
-- 构建 Docker 镜像（基于 `python:3.11-slim`）
-- 配置国内镜像源（解决网络问题）
-- 运行单元测试（30/30 通过）
-- 运行完整 agent 流水线（2 个 CVE 示例）
+---
 
 ## 环境要求
 
-- Docker Desktop（28.1.1+）
-- 任意终端（PowerShell / Git Bash / CMD）
+- Docker 24+ / Docker Desktop 28.1.1+
+- 内核源码树 `kernel-src/linux-6.6.102-5.2.an23.x86_64/`（含预编译 `vmlinux`）
+- 建议磁盘剩余空间 10 GB+
 
-## 部署
+---
+
+## 快速开始
 
 ```bash
-# 进入项目目录
-cd kernel-livepatch-agent
+# 1. 确保内核源码就绪（约 5 GB）
+ls kernel-src/linux-6.6.102-5.2.an23.x86_64/vmlinux
 
-# 构建镜像（已构建过可跳过）
+# 2. 构建镜像（首次约 5 分钟）
 docker compose build agent
 
-# 运行测试
+# 3. 运行测试
 docker compose up agent
 ```
 
-## 三个服务
+---
+
+## 服务说明
 
 | 服务 | 命令 | 用途 |
 |------|------|------|
-| agent | `docker compose up agent` | 运行单元测试（默认） |
-| agent-run | `docker compose up agent-run` | 用 sample_cves.txt 运行完整流水线 |
-| agent-dev | `docker compose run --rm agent-dev` | 交互式开发 shell（/bin/bash） |
+| `agent` | `docker compose up agent` | 运行单元测试（默认） |
+| `agent-run` | `docker compose up agent-run` | 全链路流水线（需 `DEEPSEEK_API_KEY`） |
+| `agent-run-no-llm` | `docker compose up agent-run-no-llm` | 全链路流水线（规则模式，无需 API key） |
+| `agent-dev` | `docker compose run --rm agent-dev` | 交互式开发 shell |
 
-## 进入开发环境
+### 流水线模式
 
 ```bash
-docker compose run --rm agent-dev
+# 规则模式（推荐，首次运行）
+docker compose up agent-run-no-llm
+
+# LLM 模式（需要 API key）
+export DEEPSEEK_API_KEY=sk-xxx
+docker compose up agent-run
 ```
 
-进入容器后在 `/app` 目录下可以执行：
+### 交互式开发
 
 ```bash
-# 运行测试
+docker compose run --rm agent-dev shell
+
+# 进入容器后：
 pytest tests/ -v
-
-# 模块导入验证
-python -c "from agent.state import StateManager; print('state OK')"
-python -c "from agent.planner import Planner; print('planner OK')"
-
-# 运行 agent
-python -m agent --cves sample_cves.txt --workdir /tmp/test_workspace
-
-# 退出
+python -m agent --cves sample_cves.txt --no-llm
 exit
 ```
 
-## 修改的文件
+---
 
-### Dockerfile
-
-原文件使用 `python:3.10-slim` 并从 `deb.debian.org` 和 PyPI 官方源下载依赖，在国内网络下超时。
-
-修改内容：
-1. 基础镜像改为 `python:3.11-slim`（本地已有，无需拉取）
-2. `apt` 源替换为清华镜像 `mirrors.tuna.tsinghua.edu.cn`
-3. `pip` 源替换为清华镜像 `pypi.tuna.tsinghua.edu.cn`
-
-### docker-compose.yml
-
-移除已废弃的 `version: "3.8"` 字段。
-
-## 流水线流程
-
-每个 CVE 经过 7 个步骤：
+## 架构说明
 
 ```
-resolve_cve → fetch_patch → analyze_patch → check_target
-→ apply_patch → run_build → classify_failure
+容器内 (/)
+├── /app                    # 项目源码（宿主挂载）
+│   ├── agent/              # Python 主模块
+│   ├── tests/              # 测试套件
+│   └── sample_cves.txt     # 示例输入
+├── /kernel-src/            # 内核源码树（宿主挂载）
+│   └── linux-6.6.102-5.2.an23.x86_64/
+│       ├── vmlinux         # kpatch-build 必需
+│       └── .config         # 已配置的内核编译配置
+└── /tmp/test_workspace/    # 流水线输出（持久卷）
 ```
 
-最终输出到 `/tmp/test_workspace/`，包括：
-- 各 CVE 的独立工作目录
-- `summary.json` — 批量汇总报告
+---
 
-## 当前局限
+## 流水线输出
 
-- 容器内无真实 Linux 内核源码树，`kpatch-build` 无法实际编译，状态为 `manual_required`
-- 需要真实的 CVE 编号配合网络访问才能拉取补丁
+每个 CVE 在 `/tmp/test_workspace/` 下的独立目录包含：
+
+| 文件 | 说明 |
+|------|------|
+| `patches/original.patch` | 原始上游补丁 |
+| `patches/attempt_N.patch` | 第 N 次改写后的补丁 |
+| `logs/build_N.log` | 第 N 次构建日志 |
+| `metadata/` | NVD 原始数据、CVE 元数据 |
+| `events.json` | 状态机事件时间线 |
+| `summary.json` | 批量汇总报告 |
+
+---
+
+## Dockerfile 说明
+
+```dockerfile
+FROM registry.openanolis.cn/openanolis/anolisos:23
+# 安装 gcc, make, kpatch, kpatch-build, python3, 内核编译依赖
+# 配置清华 PyPI 镜像
+# 安装 python 依赖（requirements.txt + pytest）
+```
+
+---
+
+## 注意事项
+
+1. **内核源码**: 容器通过 volume 挂载宿主 `./kernel-src` 到 `/kernel-src`，不复制避免镜像体积膨胀
+2. **编译耗时**: `kpatch-build` 编译 vmlinux 需数小时（取决于 CPU 核数），`-j$(nproc)` 自动并行
+3. **网络**: `dnf` 和 `pip` 已配置国内镜像，首次构建需联网
+4. **权限**: 容器内 `kpatch-build` 以 root 运行，挂载卷的文件权限可能变为 root，用 `chown` 恢复

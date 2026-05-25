@@ -91,10 +91,10 @@
 
 | 组件 | 推荐方案 | 文档 |
 |------|----------|------|
-| **智能体平台** | 百炼平台搭建智能体应用 | `https://help.aliyun.com/zh/model-studio/single-agent-application` |
-| **MCP 服务** | 百炼平台创建自定义 MCP 服务 | `https://help.aliyun.com/zh/model-studio/custom-mcp` |
+| **智能体平台** | LLM 平台搭建智能体应用 | `https://help.aliyun.com/zh/model-studio/single-agent-application` |
+| **MCP 服务** | LLM 平台创建自定义 MCP 服务 | `https://help.aliyun.com/zh/model-studio/custom-mcp` |
 | **函数计算** | 函数计算 FC 使用自定义镜像 | `https://help.aliyun.com/zh/functioncompute/fc/user-guide/custom-container/` |
-| **大语言模型** | Qwen 系列 | - |
+| **大语言模型** | DeepSeek 系列 | - |
 
 ---
 
@@ -102,7 +102,7 @@
 
 | 产物 | 说明 |
 |------|------|
-| **a) 百炼平台应用链接** | 可在百炼平台上运行的智能体应用 |
+| **a) LLM 平台应用链接** | 可在LLM 平台上运行的智能体应用 |
 | **b) 代码仓库** | 完整的源代码、构建脚本、测试用例 |
 | **c) 完整文档说明** | 详细设计、部署方法、使用说明、测试说明、失败案例分析 |
 
@@ -158,16 +158,23 @@
 | CLI 入口 | ✅ 已实现 | `__main__.py`, `run` |
 | Docker 容器化 | ✅ 已实现 | `Dockerfile`, `docker-compose.yml` |
 | 环境安装脚本 | ✅ 已实现 | `setup_env.sh` |
-| 测试用例 | ✅ 30 个测试通过 | `tests/` |
+| 测试用例 | ✅ 108 个测试通过 | `tests/` |
 | 详细设计文档 | ✅ 已实现 | `README.md` |
 | 使用指南 | ✅ 已实现 | `USAGE.md` |
+| YAML 规则引擎 | ✅ 已实现 | `knowledge/loader.py`, `rules/*.yaml` |
+| LLM 集成（框架） | ✅ 已实现 | `llm/` |
+| RAG 知识库 | ✅ 122 条知识 | `rag/` |
+| 补丁语义验证 | ✅ 已实现 | `tools/semantic_validator.py` |
+| 内核 config 检查 | ✅ 已实现 | `tools/kernel_config_checker.py` |
+| NVD 缓存 | ✅ 已实现 | `cve_resolver.py`（磁盘缓存）|
+| Patch 缓存 | ✅ 已实现 | `patch_fetcher.py`（磁盘缓存）|
 
 ### 9.2 待完善能力
 
 | 赛题要求 | 当前状态 | 说明 |
 |----------|----------|------|
-| 百炼平台应用链接 | ⏳ 待部署 | 需要在百炼平台创建智能体应用 |
-| MCP 服务 | ⏳ 待开发 | 需要封装 MCP 接口供百炼调用 |
+| LLM 平台应用链接 | ⏳ 待部署 | 需要在LLM 平台创建智能体应用 |
+| MCP 服务 | ⏳ 待开发 | 需要封装 MCP 接口供LLM 调用 |
 | 函数计算 FC 部署 | ⏳ 待部署 | 需要制作自定义镜像并部署到 FC |
 | 最终评测集验证 | ⏳ 待测试 | 需要获取 Final 数据集进行验证 |
 | 录屏 Demo | ⏳ 待制作 | 需要录制完整流程演示视频 |
