@@ -22,7 +22,15 @@ class KnowledgeRetriever:
         self.kb = kb
         self._bm25 = None
         self._corpus: List[str] = []
+        self._known_doc_count = 0
         self._try_load_bm25()
+
+    def _ensure_index_fresh(self):
+        """Rebuild BM25 index when documents have been added since init."""
+        current_count = len(self.kb.documents)
+        if current_count != self._known_doc_count:
+            self._rebuild_bm25()
+            self._known_doc_count = current_count
 
     def _try_load_bm25(self):
         try:
@@ -32,6 +40,7 @@ class KnowledgeRetriever:
             self._bm25 = None
 
     def _rebuild_bm25(self):
+        self._known_doc_count = len(self.kb.documents)
         docs = self.kb.documents
         if not docs:
             self._bm25 = None
@@ -48,9 +57,10 @@ class KnowledgeRetriever:
     def retrieve(self, query: str, top_k: int = 5) -> List[KnowledgeChunk]:
         """Return top-k chunks matching the query.
 
-        Returns:
-            List of KnowledgeChunk, empty when the KB has no documents.
+        Rebuilds BM25 index automatically if documents have been added
+        since the retriever was created.
         """
+        self._ensure_index_fresh()
         docs = self.kb.documents
         if not docs:
             return []

@@ -121,6 +121,8 @@ class KnowledgeLoader:
             return "build"
         if pattern_id.startswith("env."):
             return "env_check"
+        if pattern_id.startswith("config."):
+            return "config_check"
         return "unknown"
 
     @staticmethod
@@ -130,6 +132,7 @@ class KnowledgeLoader:
             "rewrite": (True, "rewrite"),
             "manual_required": (False, "manual_required"),
             "fix_environment": (False, "fix_environment"),
+            "skip": (False, "skip"),
         }
         return mapping.get(action, (False, "manual_required"))
 

@@ -2,6 +2,7 @@
 import os
 import json
 import tempfile
+from unittest.mock import MagicMock
 from agent.tools.rewrite_advisor import RewriteAdvisor
 
 
@@ -40,6 +41,25 @@ class TestRewriteAdvisor:
             }]
         }
         plan = self.advisor.create_rewrite_plan(failure, change_units, attempt=1)
+        assert plan["decision"] == "manual_required"
+
+    def test_llm_does_not_override_struct_abi_manual_gate(self):
+        llm = MagicMock()
+        llm.ping.return_value = True
+        advisor = RewriteAdvisor(self.tmpdir, "CVE-2026-0001", llm_client=llm)
+        failure = {
+            "category": "kpatch_limit", "reason_code": "struct_or_data_change",
+            "retryable": False,
+        }
+        change_units = {
+            "units": [{
+                "change_id": "CU-001", "file": "net/example.c",
+                "function": "example_check", "rewrite_allowed": False,
+            }]
+        }
+
+        plan = advisor.create_rewrite_plan(failure, change_units, attempt=1)
+
         assert plan["decision"] == "manual_required"
 
     def test_rewrite_plan_file_saved(self):
@@ -92,3 +112,42 @@ class TestRewriteAdvisor:
         result = self.advisor.apply_rewrite(
             "/nonexistent/original.patch", plan, "/some/source", attempt=1)
         assert result["success"] is False
+
+    def test_rule_fallback_must_validate_before_success(self, monkeypatch):
+        original = os.path.join(self.cve_dir, "patches", "original.patch")
+        with open(original, "w") as f:
+            f.write("--- a/net/example.c\n+++ b/net/example.c\n@@ -1,1 +1,1 @@\n-old\n+new\n")
+        llm = MagicMock()
+        llm.ping.return_value = True
+        advisor = RewriteAdvisor(self.tmpdir, "CVE-2026-0001", llm_client=llm)
+        monkeypatch.setattr(advisor, "_llm_rewrite", lambda *args: "invalid llm patch")
+        validate = MagicMock(return_value=False)
+        monkeypatch.setattr(advisor, "_validate_rewrite", validate)
+
+        result = advisor.apply_rewrite(
+            original, {"decision": "rewrite", "strategy": "context_drift"},
+            "/kernel/source", attempt=1
+        )
+
+        assert result["success"] is False
+        assert result["output_path"] is None
+        assert validate.call_count == 2
+        assert not os.path.exists(os.path.join(self.cve_dir, "patches", "attempt_1.patch"))
+
+    def test_rule_rewrite_signals_offset_api_and_include_actions(self):
+        patch = "--- a/net/example.c\n+++ b/net/example.c\n@@ -10,2 +10,2 @@\n-old\n+new\n"
+
+        shifted = self.advisor._rule_based_rewrite(patch, "context_drift")
+        api_hint = self.advisor._rule_based_rewrite(patch, "api_mismatch")
+        include_hint = self.advisor._rule_based_rewrite(patch, "missing_include")
+
+        assert "@@ -13,2 +13,2 @@" in shifted
+        assert "REWRITE-NOTE: API mismatch" in api_hint
+        assert "REWRITE-NOTE: consider adding necessary includes/defines" in include_hint
+
+    def test_fenced_llm_diff_preserves_git_required_final_newline(self):
+        result = self.advisor._extract_diff_from_response(
+            "```diff\n--- a/net/example.c\n+++ b/net/example.c\n@@ -1 +1 @@\n-old\n+new\n```"
+        )
+
+        assert result.endswith("\n")

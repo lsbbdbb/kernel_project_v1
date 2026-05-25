@@ -8,3 +8,14 @@ test_run/
 work/
 venv/
 .env
+kernel-src/
+acceptance_vm_20260525/
+# On-disk CVE workdirs — generated, not tracked
+run_2026*/
+# kpatch build cache
+.kpatch/
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

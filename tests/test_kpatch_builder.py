@@ -13,7 +13,7 @@ def test_build_collects_livepatch_from_command_cwd(tmp_path, monkeypatch):
     patch = tmp_path / "fix.patch"
     patch.write_text("diff --git a/a.c b/a.c\n")
 
-    def fake_run(cmd, stdout, stderr, timeout, cwd):
+    def fake_run(cmd, stdout, stderr, timeout, cwd, env=None):
         assert cwd.endswith(os.path.join("CVE-2026-0001", "artifacts"))
         ko_path = os.path.join(cwd, "livepatch-fix.ko")
         with open(ko_path, "wb") as f:
@@ -29,3 +29,22 @@ def test_build_collects_livepatch_from_command_cwd(tmp_path, monkeypatch):
     assert result["artifact_path"].endswith("livepatch.ko")
     assert os.path.exists(result["artifact_path"])
     assert result["sha256"]
+
+
+def test_build_stops_before_kpatch_when_kernel_release_mismatches(tmp_path):
+    source_dir = tmp_path / "kernel-src"
+    source_dir.mkdir()
+    (source_dir / "Makefile").write_text("kernelrelease:\n\t@echo 6.6.102-wrong\n")
+    vmlinux = source_dir / "vmlinux"
+    vmlinux.write_text("fake vmlinux")
+    patch = tmp_path / "fix.patch"
+    patch.write_text("diff --git a/a.c b/a.c\n")
+
+    result = KpatchBuilder(str(tmp_path), "CVE-2026-0002").build(
+        str(patch), str(source_dir), str(vmlinux),
+        expected_kernel_version="6.6.102-5.2.an23.x86_64",
+    )
+
+    assert result["success"] is False
+    assert result["detected_kernel_version"] == "6.6.102-wrong"
+    assert "kernel release mismatch" in open(result["log_path"]).read()

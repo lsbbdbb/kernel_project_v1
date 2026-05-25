@@ -37,6 +37,8 @@ class PatchParser:
         with open(patch_path) as f:
             content = f.read()
         files = self._parse_files(content)
+        if not files:
+            raise ValueError(f"Patch contains no unified diff: {patch_path}")
         functions = self._extract_functions(content, files)
         risk_tags = self._detect_risks(content, functions)
         semantic_summary = self._generate_semantic_summary(content)
@@ -62,27 +64,41 @@ class PatchParser:
         files = []
         for match in re.finditer(r'^diff --git a/(.*?) b/(.*?)$', content, re.MULTILINE):
             files.append({"path": match.group(2), "status": "modified", "hunk_count": 1})
-        if not files:
-            files.append({"path": "unknown", "status": "modified", "hunk_count": 0})
         return files
 
     def _extract_functions(self, content: str, files: List[Dict]) -> List[Dict]:
         functions = []
         seen = set()
-        for match in re.finditer(r'^@@[^\n]+@@\s*([^\n]*)', content, re.MULTILINE):
-            func_hint = match.group(1).strip()
-            func_match = re.search(r'(\w+)\s*\(', func_hint)
-            if func_match and func_match.group(1) not in seen:
-                seen.add(func_match.group(1))
-                functions.append({
-                    "name": func_match.group(1),
-                    "file": files[0]["path"] if files else "unknown",
-                    "risk_tags": self._function_risk_tags(content, func_match.group(1)),
-                })
+        # Track which file the current hunk is in by scanning backward
+        # for the most recent "diff --git a/... b/..." line
+        file_index = 0
+        for line in content.splitlines():
+            diff_match = re.match(r'^diff --git a/(.*?) b/(.*?)$', line)
+            if diff_match:
+                # Find matching file index
+                target_path = diff_match.group(2)
+                file_index = 0
+                for i, f in enumerate(files):
+                    if f["path"] == target_path:
+                        file_index = i
+                        break
+            hunk_match = re.match(r'^@@[^\n]+@@\s*([^\n]*)', line)
+            if hunk_match:
+                func_hint = hunk_match.group(1).strip()
+                func_match = re.search(r'(\w+)\s*\(', func_hint)
+                if func_match and func_match.group(1) not in seen:
+                    seen.add(func_match.group(1))
+                    current_file = files[file_index]["path"] if file_index < len(files) else "unknown"
+                    functions.append({
+                        "name": func_match.group(1),
+                        "file": current_file,
+                        "risk_tags": self._function_risk_tags(content, func_match.group(1)),
+                    })
         if not functions:
+            first_file = files[0]["path"] if files else "unknown"
             functions.append({
                 "name": "unknown",
-                "file": files[0]["path"] if files else "unknown",
+                "file": first_file,
                 "risk_tags": [],
             })
         return functions

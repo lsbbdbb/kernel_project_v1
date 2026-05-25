@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 import os
+import re
 import yaml
 
 
@@ -12,6 +13,50 @@ class KnowledgeChunk:
     id: str
     content: str
     metadata: Dict = field(default_factory=dict)
+
+
+_KNOWN_DIRS = None
+
+
+def _rag_knowledge_dirs() -> List[str]:
+    """Return candidate directories containing chunked knowledge files."""
+    global _KNOWN_DIRS
+    if _KNOWN_DIRS is not None:
+        return _KNOWN_DIRS
+    base = os.path.dirname(os.path.abspath(__file__))   # agent/rag/
+    agent_dir = os.path.dirname(base)                    # agent/
+    cand = os.path.join(agent_dir, "knowledge", "rag_knowledge")
+    dirs = []
+    if os.path.isdir(cand):
+        dirs.append(cand)
+    _KNOWN_DIRS = dirs
+    return dirs
+
+
+_CHUNK_SPLIT_RE = re.compile(r'\n---\n')
+
+
+def _parse_chunk_frontmatter(text: str):
+    """Parse inline YAML-like frontmatter lines at top of a chunk.
+
+    Lines like:
+        type: foo
+        tags: bar, baz
+    are extracted as metadata. Everything after blank line is content.
+    """
+    meta: Dict[str, str] = {}
+    lines = text.split('\n', 10)
+    content_start = 0
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped:
+            content_start = i + 1
+            break
+        if ':' in stripped:
+            key, _, val = stripped.partition(':')
+            meta[key.strip()] = val.strip()
+    content = '\n'.join(lines[content_start:]).strip()
+    return meta, content
 
 
 class KnowledgeBase:
@@ -102,6 +147,90 @@ class KnowledgeBase:
 
     # ------------------------------------------------------------------
     # Kernel API documentation
+    # ------------------------------------------------------------------
+    # RAG chunked knowledge loading (from rag_knowledge/ directory)
+    # ------------------------------------------------------------------
+
+    def load_rag_knowledge(self, directory: Optional[str] = None) -> int:
+        """Load chunked knowledge .md files from a directory.
+
+        Each .md file is split by '---' separators. Each chunk should
+        start with frontmatter lines (type / id / tags / title) followed
+        by a blank line and then the content body.
+
+        Example chunk:
+            type: kpatch_limit
+            id: no_fentry_explained
+            tags: fentry, ftrace, notrace, livepatch
+            title: no fentry call — explanation and workaround
+            <blank line>
+            When kpatch-build reports "no fentry call" ...
+
+        Returns:
+            Number of chunks loaded.
+        """
+        if directory is None:
+            dirs = _rag_knowledge_dirs()
+            if not dirs:
+                return 0
+            directory = dirs[0]
+
+        if not os.path.isdir(directory):
+            return 0
+
+        count = 0
+        for fname in sorted(os.listdir(directory)):
+            if not fname.endswith('.md'):
+                continue
+            fpath = os.path.join(directory, fname)
+            try:
+                with open(fpath, 'r', encoding='utf-8') as f:
+                    raw = f.read()
+            except (OSError, UnicodeDecodeError):
+                continue
+
+            raw_chunks = _CHUNK_SPLIT_RE.split(raw)
+            for chunk_text in raw_chunks:
+                chunk_text = chunk_text.strip()
+                if not chunk_text:
+                    continue
+                meta, content = _parse_chunk_frontmatter(chunk_text)
+                if not content:
+                    continue
+
+                chunk_id = meta.get('id', '') or f"rag_{fname}_{count}"
+                chunk_type = meta.get('type', 'general')
+                tags_str = meta.get('tags', '')
+                tags = [t.strip() for t in tags_str.split(',') if t.strip()]
+
+                # Build searchable content: id + tags + body (duplicate key words)
+                searchable = f"{chunk_id} {' '.join(tags)} {content}"
+                self.documents.append(KnowledgeChunk(
+                    id=chunk_id,
+                    content=searchable,
+                    metadata={
+                        "type": chunk_type,
+                        "source_file": fname,
+                        "tags": tags,
+                        "title": meta.get('title', ''),
+                    },
+                ))
+                count += 1
+
+        return count
+
+    def load_all(self) -> int:
+        """Convenience: load YAML rules + kernel API + RAG knowledge.
+
+        Returns:
+            Total number of chunks loaded.
+        """
+        total = 0
+        total += self.load_yaml_rules()
+        total += self.load_kernel_api_yaml()
+        total += self.load_rag_knowledge()
+        return total
+
     # ------------------------------------------------------------------
 
     def add_kernel_api_doc(self, symbol: str, signature: str,

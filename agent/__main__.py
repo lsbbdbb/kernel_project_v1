@@ -14,7 +14,7 @@ import re
 import subprocess
 import traceback
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from agent.state import StateManager
 from agent.planner import Planner, LLMPlanner
@@ -28,6 +28,7 @@ from agent.tools.failure_classifier import FailureClassifier
 from agent.tools.rewrite_advisor import RewriteAdvisor
 from agent.tools.verifier import Verifier
 from agent.tools.reporter import Reporter
+from agent.tools.kernel_config_checker import KernelConfigChecker
 
 
 def validate_cve_id(cve_id: str) -> bool:
@@ -80,6 +81,19 @@ def _target_source_dir(workdir: str, kernel_version: str) -> str:
     return stripped
 
 
+def _apply_llm_overrides(cfg, provider: str = None, model: str = None):
+    """Apply explicit CLI LLM settings while keeping provider config aligned."""
+    from agent.llm.config import DEFAULT_BASE_URLS, LLMConfig
+
+    if provider:
+        cfg.provider = provider
+        cfg.api_key = LLMConfig._api_key_from_env(provider)
+        cfg.base_url = os.getenv("LLM_BASE_URL") or DEFAULT_BASE_URLS.get(provider)
+    if model:
+        cfg.model = LLMConfig.normalize_model(model)
+    return cfg
+
+
 # ---------------------------------------------------------------------------
 # Action executors – each maps to one planner action
 # ---------------------------------------------------------------------------
@@ -105,31 +119,42 @@ def _action_fetch_patch(cve_id: str, workdir: str, state_mgr: StateManager) -> D
         nvd = meta.get("nvd", {})
         for ref in nvd.get("references", []):
             url = ref.get("url", "")
+            # Direct .patch URL → prefer this
             if url.endswith(".patch") or "/patch" in url:
                 patch_url = url
+                break
+            # kernel.org commit URL → convert to patch URL
+            # https://git.kernel.org/stable/c/<hash> → .../linux.git/patch/?id=<hash>
+            import re as _re
+            _m = _re.match(r'(https?://git\.kernel\.org)/.*?/c/([0-9a-f]+)', url)
+            if _m:
+                patch_url = f"{_m.group(1)}/pub/scm/linux/kernel/git/stable/linux.git/patch/?id={_m.group(2)}"
                 break
 
     if patch_url:
         result = fetcher.fetch_from_url(patch_url)
-    else:
-        # No direct patch URL – save placeholder so pipeline can continue
+    if not patch_url:
         result = {
             "success": False,
             "error": "No patch URL found in CVE metadata",
             "path": None,
         }
-        # Create a minimal placeholder patch so downstream tools don't crash
         patches_dir = os.path.join(workdir, cve_id, "patches")
         os.makedirs(patches_dir, exist_ok=True)
-        placeholder = os.path.join(patches_dir, "original.patch")
-        with open(placeholder, "w") as f:
-            f.write("# No upstream patch found – placeholder for pipeline\n")
-        result["path"] = placeholder
+        with open(os.path.join(patches_dir, "patch_source.json"), "w") as f:
+            json.dump(result, f, indent=2)
 
-    if result.get("success") or result.get("path"):
+    if result.get("success"):
         state_mgr.transition_to(cve_id, "PatchFetched",
                                 reason="Patch fetched",
                                 evidence={"original_patch": result.get("path")})
+    else:
+        source_record = os.path.join(workdir, cve_id, "patches", "patch_source.json")
+        state_mgr.set_error(cve_id, result.get("error", "Patch retrieval failed"))
+        state_mgr.set_final_status(cve_id, "failed")
+        state_mgr.transition_to(cve_id, "Failed",
+                                reason="Upstream patch retrieval failed",
+                                evidence={"patch_source": source_record})
     return result
 
 
@@ -144,17 +169,35 @@ def _action_analyze_patch(cve_id: str, workdir: str, state_mgr: StateManager) ->
 
 
 def _action_check_target(cve_id: str, workdir: str, state_mgr: StateManager) -> Dict:
-    """Check target kernel source tree availability."""
+    """Check target source availability and whether patched objects are configured."""
     run_config = state_mgr.get_run_config()
     kernel_version = run_config.get("kernel_version", "6.6.102-5.2.an23.x86_64")
     source_dir = _target_source_dir(workdir, kernel_version)
 
     target_status = {"source_dir": source_dir, "exists": os.path.isdir(source_dir)}
+    patch_ir_path = os.path.join(workdir, cve_id, "patch_ir.json")
+    if target_status["exists"] and os.path.isfile(patch_ir_path):
+        with open(patch_ir_path) as patch_ir_file:
+            patch_ir = json.load(patch_ir_file)
+        patched_files = [
+            item.get("path", "") for item in patch_ir.get("files", [])
+            if item.get("path") and item.get("path") != "unknown"
+        ]
+        target_status["config_check"] = KernelConfigChecker(source_dir).check_files(
+            patched_files
+        )
     ctx_path = os.path.join(workdir, cve_id, "context_match.json")
     with open(ctx_path, "w") as f:
         json.dump(target_status, f, indent=2)
 
-    if target_status["exists"]:
+    if target_status.get("config_check", {}).get("skipped"):
+        state_mgr.set_final_status(cve_id, "skipped")
+        state_mgr.transition_to(
+            cve_id, "Skipped",
+            reason="Patch targets object disabled by target kernel configuration",
+            evidence={"context_match": ctx_path},
+        )
+    elif target_status["exists"]:
         state_mgr.transition_to(cve_id, "TargetChecked",
                                 reason="Target source tree found")
     else:
@@ -181,13 +224,14 @@ def _action_apply_patch(cve_id: str, workdir: str, state_mgr: StateManager) -> D
     source_dir = _target_source_dir(workdir, kernel_version)
 
     result = {"patch_path": patch_path, "source_dir": source_dir,
-              "dry_run_ok": False, "error": None}
+              "dry_run_ok": False, "error": None, "stage": "apply"}
 
     if os.path.isdir(source_dir) and os.path.isfile(patch_path):
         try:
             proc = subprocess.run(
                 ["git", "apply", "--check", patch_path],
-                cwd=source_dir, capture_output=True, text=True, timeout=30)
+                cwd=source_dir, capture_output=True, text=True, timeout=30,
+                env={**os.environ, "LC_ALL": "C", "LANG": "C"})
             result["dry_run_ok"] = proc.returncode == 0
             if proc.returncode != 0:
                 result["error"] = proc.stderr[:500]
@@ -197,8 +241,19 @@ def _action_apply_patch(cve_id: str, workdir: str, state_mgr: StateManager) -> D
         result["dry_run_ok"] = True  # Skip dry-run if source unavailable
         result["note"] = "Source tree not available, skipping dry-run"
 
-    state_mgr.transition_to(cve_id, "PatchApplied",
-                            reason="Patch applied (dry-run)")
+    if result["dry_run_ok"]:
+        state_mgr.transition_to(cve_id, "PatchApplied",
+                                reason="Patch passed git apply --check")
+    else:
+        logs_dir = os.path.join(workdir, cve_id, "logs")
+        os.makedirs(logs_dir, exist_ok=True)
+        log_path = os.path.join(logs_dir, f"build_{attempt}.log")
+        with open(log_path, "w") as log:
+            log.write(result.get("error") or "git apply --check failed\n")
+        result["log_path"] = log_path
+        state_mgr.transition_to(cve_id, "BuildFailed",
+                                reason="Patch failed git apply --check",
+                                evidence={"build_log": log_path})
     return result
 
 
@@ -220,9 +275,21 @@ def _action_run_build(cve_id: str, workdir: str, state_mgr: StateManager) -> Dic
     source_dir = _target_source_dir(workdir, kernel_version)
     vmlinux_path = os.path.join(source_dir, "vmlinux")
 
+    # Ensure kernel .config is fresh before building (fixes syncconfig errors)
+    _ensure_kernel_config(source_dir)
+
+    # Detect actual kernel release after config fix (make olddefconfig may
+    # change the version string, e.g. adding git hash suffix). Use the
+    # ACTUAL release for validation, not the configured one.
+    actual_version = _detect_kernel_release(source_dir) or kernel_version
+
     builder = KpatchBuilder(workdir, cve_id)
     result = builder.build(patch_path, source_dir, vmlinux_path,
-                           kernel_devel_path=None, attempt=attempt)
+                           kernel_devel_path=None, attempt=attempt,
+                           expected_kernel_version=actual_version)
+
+    # Clean source tree after build to prevent pollution of subsequent runs
+    _clean_kernel_source(source_dir)
 
     if result["success"]:
         state_mgr.transition_to(cve_id, "BuildSucceeded",
@@ -250,13 +317,18 @@ def _action_classify_failure(cve_id: str, workdir: str, state_mgr: StateManager)
     classifier = FailureClassifier(workdir, cve_id)
     failure = classifier.classify(log_path, attempt=attempt)
 
-    # Save attempt record
-    attempt_rec = {
+    # Preserve rewrite provenance when a rewritten build later fails.
+    attempt_path = os.path.join(workdir, cve_id, f"attempt_{attempt}.json")
+    attempt_rec = {}
+    if os.path.exists(attempt_path):
+        with open(attempt_path) as existing_attempt:
+            attempt_rec = json.load(existing_attempt)
+    attempt_rec.update({
         "attempt_index": attempt,
         "build_log": log_path,
         "failure": failure,
-    }
-    with open(os.path.join(workdir, cve_id, f"attempt_{attempt}.json"), "w") as f:
+    })
+    with open(attempt_path, "w") as f:
         json.dump(attempt_rec, f, indent=2, ensure_ascii=False)
 
     state_mgr.transition_to(cve_id, "FailureClassified",
@@ -303,7 +375,7 @@ def _action_prepare_rewrite(cve_id: str, workdir: str, state_mgr: StateManager, 
             from agent.rag.knowledge_base import KnowledgeBase
             from agent.rag.retriever import KnowledgeRetriever
             kb = KnowledgeBase()
-            kb.load_yaml_rules()
+            kb.load_all()
             retriever = KnowledgeRetriever(kb)
         except Exception:
             pass
@@ -313,7 +385,10 @@ def _action_prepare_rewrite(cve_id: str, workdir: str, state_mgr: StateManager, 
 
     if plan.get("decision") == "rewrite":
         original_patch = os.path.join(workdir, cve_id, "patches", "original.patch")
-        target_source_dir = os.environ.get("KERNEL_SRC", "")
+        kernel_version = state_mgr.get_run_config().get(
+            "kernel_version", "6.6.102-5.2.an23.x86_64"
+        )
+        target_source_dir = _target_source_dir(workdir, kernel_version)
         rewrite_result = advisor.apply_rewrite(original_patch, plan, target_source_dir, attempt)
         if rewrite_result.get("success"):
             state_mgr.transition_to(cve_id, "RewritePrepared",
@@ -331,11 +406,12 @@ def _action_prepare_rewrite(cve_id: str, workdir: str, state_mgr: StateManager, 
         return plan
 
 
-def _action_run_verify(cve_id: str, workdir: str, state_mgr: StateManager) -> Dict:
+def _action_run_verify(cve_id: str, workdir: str, state_mgr: StateManager,
+                       vm_host: str = None, poc_path: str = None) -> Dict:
     """Verify .ko in target VM (or local modinfo if VM not available)."""
     ko_path = os.path.join(workdir, cve_id, "artifacts", "livepatch.ko")
     verifier = Verifier(workdir, cve_id)
-    result = verifier.verify(ko_path, vm_host=None)
+    result = verifier.verify(ko_path, vm_host=vm_host, poc_path=poc_path)
 
     if result.get("result") == "passed":
         state_mgr.transition_to(cve_id, "Verified",
@@ -363,6 +439,7 @@ def _action_write_report(cve_id: str, workdir: str, state_mgr: StateManager, cve
         "ReportWritten": state.get("status") or "success",
         "ManualRequired": "manual_required",
         "Failed": "failed",
+        "Skipped": "skipped",
     }
     final_status = status_map.get(final_state, "failed")
     if not state.get("status"):
@@ -378,7 +455,9 @@ def _action_write_report(cve_id: str, workdir: str, state_mgr: StateManager, cve
 # Main loop
 # ---------------------------------------------------------------------------
 
-def process_cve(cve_id: str, workdir: str, state_mgr: StateManager, planner: Planner, cve_ids: List[str], llm_client=None) -> None:
+def process_cve(cve_id: str, workdir: str, state_mgr: StateManager, planner: Planner,
+                cve_ids: List[str], llm_client=None, vm_host: str = None,
+                poc_path: str = None) -> None:
     """Run the full pipeline for a single CVE."""
     max_iterations = 50  # Safety limit to prevent infinite loops
     iteration = 0
@@ -393,6 +472,8 @@ def process_cve(cve_id: str, workdir: str, state_mgr: StateManager, planner: Pla
             next_st = decision.get("next_state")
             if next_st == "Failed":
                 state_mgr.set_final_status(cve_id, "failed")
+            elif next_st == "Skipped":
+                state_mgr.set_final_status(cve_id, "skipped")
             elif next_st == "ManualRequired" or state_mgr.get_state(cve_id).get("status") == "manual_required":
                 state_mgr.set_final_status(cve_id, "manual_required")
             elif not state_mgr.get_state(cve_id).get("status"):
@@ -420,6 +501,8 @@ def process_cve(cve_id: str, workdir: str, state_mgr: StateManager, planner: Pla
                 result = handler(cve_id, workdir, state_mgr, cve_ids)
             elif action == "prepare_rewrite":
                 result = handler(cve_id, workdir, state_mgr, llm_client)
+            elif action == "run_verify":
+                result = handler(cve_id, workdir, state_mgr, vm_host, poc_path)
             else:
                 result = handler(cve_id, workdir, state_mgr)
             print(f"  [{cve_id}]   -> {action} completed")
@@ -437,6 +520,199 @@ def process_cve(cve_id: str, workdir: str, state_mgr: StateManager, planner: Pla
             break
 
 
+def _ensure_kernel_config(source_dir: str):
+    """Ensure kernel .config is fresh before kpatch-build.
+
+    Also ensures include/config/auto.conf.cmd exists — this file is
+    generated by 'make syncconfig' (not by 'make olddefconfig') and
+    is required by the kernel Makefile at line 787. Without it, the
+    build will fail with:
+      Makefile:787: include/config/auto.conf.cmd: No such file or directory
+
+    Tries 'make olddefconfig' with srctree and CC overrides if the
+    simple invocation fails. Runs 'make syncconfig' if auto.conf.cmd
+    is still missing.
+
+    In the Docker build environment, use: docker compose up agent
+    """
+    if not os.path.isdir(source_dir):
+        return False
+    config_path = os.path.join(source_dir, ".config")
+    if not os.path.isfile(config_path):
+        return False
+    # Try simple invocation first (works in Docker)
+    for cmd in [
+        ["make", "olddefconfig"],
+        ["make", "olddefconfig", "srctree=.", "CC=gcc"],
+    ]:
+        try:
+            proc = subprocess.run(
+                cmd, cwd=source_dir, capture_output=True, text=True,
+                timeout=120,
+                env={**os.environ, "LC_ALL": "C", "LANG": "C"},
+            )
+            if proc.returncode == 0:
+                break
+        except Exception:
+            continue
+    else:
+        return False
+
+    # auto.conf.cmd is NOT created by olddefconfig — only by syncconfig.
+    # If missing, run syncconfig (which tolerates errors) to generate it.
+    # The Makefile 'include include/config/auto.conf.cmd' (line 787) will
+    # fail fatally if this file is absent when kpatch-build runs make.
+    auto_conf_cmd = os.path.join(source_dir, "include", "config", "auto.conf.cmd")
+    if not os.path.isfile(auto_conf_cmd):
+        syncconfig_cmds = [
+            ["make", "syncconfig", "srctree=.", "CC=gcc"],
+            ["make", "syncconfig"],
+        ]
+        for cmd in syncconfig_cmds:
+            try:
+                proc = subprocess.run(
+                    cmd, cwd=source_dir, capture_output=True, text=True,
+                    timeout=120,
+                    env={**os.environ, "LC_ALL": "C", "LANG": "C"},
+                )
+                # syncconfig exits non-zero but still writes auto.conf.cmd
+                if os.path.isfile(auto_conf_cmd):
+                    break
+            except Exception:
+                continue
+
+    # Touch auto.conf and auto.conf.cmd to be newer than .config,
+    # preventing the kernel Makefile from re-triggering syncconfig.
+    # Without this, kpatch-build's make will run syncconfig which
+    # fails due to kpatch-cc wrapper in CC variable.
+    auto_conf = os.path.join(source_dir, "include", "config", "auto.conf")
+    auto_conf_cmd = os.path.join(source_dir, "include", "config", "auto.conf.cmd")
+    if os.path.isfile(auto_conf) and os.path.isfile(auto_conf_cmd):
+        import time
+        config_mtime = os.path.getmtime(config_path)
+        min_new = config_mtime + 1.0
+        for f in (auto_conf, auto_conf_cmd):
+            if os.path.getmtime(f) <= config_mtime:
+                os.utime(f, (min_new, min_new))
+
+    return True
+
+
+def _clean_kernel_source(source_dir: str):
+    """Restore kernel source tree to a clean git state.
+    
+    Called before and after kpatch-build to prevent build artifacts
+    from polluting subsequent runs.
+    """
+    if not os.path.isdir(source_dir):
+        return
+    git_dir = os.path.join(source_dir, ".git")
+    if not os.path.isdir(git_dir):
+        return
+    try:
+        subprocess.run(
+            ["git", "checkout", "--", "."],
+            cwd=source_dir, capture_output=True, timeout=60,
+        )
+        subprocess.run(
+            ["git", "clean", "-fd"],
+            cwd=source_dir, capture_output=True, timeout=60,
+        )
+    except Exception:
+        pass
+
+
+def _detect_kernel_release(source_dir: str) -> Optional[str]:
+    """Detect the actual kernel release string from the source tree."""
+    if not os.path.isdir(source_dir):
+        return None
+    try:
+        proc = subprocess.run(
+            ["make", "-s", "kernelrelease"],
+            cwd=source_dir, capture_output=True, text=True, timeout=30,
+            env={**os.environ, "LC_ALL": "C", "LANG": "C"},
+        )
+        if proc.returncode == 0:
+            return proc.stdout.strip()
+    except Exception:
+        pass
+    return None
+
+
+def _action_fix_environment(cve_id: str, workdir: str, state_mgr: StateManager) -> Dict:
+    """Fix environment issues detected by failure classifier."""
+    # Read failure to determine which fix to apply
+    failure_path = os.path.join(workdir, cve_id, "failure.json")
+    reason_code = "unknown"
+    if os.path.exists(failure_path):
+        with open(failure_path) as f:
+            failure = json.load(f)
+        reason_code = failure.get("reason_code", "unknown")
+
+    run_config = state_mgr.get_run_config()
+    kernel_version = run_config.get("kernel_version", "6.6.102-5.2.an23.x86_64")
+    source_dir = _target_source_dir(workdir, kernel_version)
+
+    result = {"fix": reason_code, "source_dir": source_dir, "success": False, "message": ""}
+
+    if reason_code == "syncconfig" and os.path.isdir(source_dir):
+        # Try multiple make olddefconfig variants
+        for cmd in [
+            ["make", "olddefconfig"],
+            ["make", "olddefconfig", "srctree=.", "CC=gcc"],
+        ]:
+            try:
+                proc = subprocess.run(
+                    cmd, cwd=source_dir, capture_output=True, text=True,
+                    timeout=120,
+                    env={**os.environ, "LC_ALL": "C", "LANG": "C"},
+                )
+                if proc.returncode == 0:
+                    result["success"] = True
+                    result["message"] = f"{' '.join(cmd)} completed successfully"
+                    break
+                result["message"] = f"{' '.join(cmd)} failed: {proc.stderr[:200]}"
+            except Exception as e:
+                result["message"] = str(e)
+        # Also ensure auto.conf.cmd exists (syncconfig only)
+        auto_conf_cmd = os.path.join(source_dir, "include", "config", "auto.conf.cmd")
+        if not os.path.isfile(auto_conf_cmd):
+            for cmd in [
+                ["make", "syncconfig", "srctree=.", "CC=gcc"],
+                ["make", "syncconfig"],
+            ]:
+                try:
+                    proc = subprocess.run(
+                        cmd, cwd=source_dir, capture_output=True, text=True,
+                        timeout=120,
+                        env={**os.environ, "LC_ALL": "C", "LANG": "C"},
+                    )
+                    if os.path.isfile(auto_conf_cmd):
+                        result["success"] = True
+                        result["message"] += " + syncconfig (generated auto.conf.cmd)"
+                        break
+                except Exception:
+                    continue
+    elif reason_code in (
+        "missing_vmlinux", "source_permission_denied", "git_unsafe_ownership",
+        "kernel_mismatch", "setlocalversion_incompatible",
+    ):
+        result["message"] = f"Environment issue {reason_code} requires manual intervention"
+    else:
+        result["message"] = f"No automated fix available for {reason_code}"
+
+    if result["success"]:
+        state_mgr.transition_to(cve_id, "FixEnvironment",
+                                reason=result["message"],
+                                evidence={"env_fix": result})
+    else:
+        state_mgr.set_final_status(cve_id, "manual_required")
+        state_mgr.transition_to(cve_id, "ManualRequired",
+                                reason=result["message"],
+                                evidence={"env_fix": result})
+    return result
+
+
 # Map action names to handler functions
 ACTION_MAP = {
     "resolve_cve": _action_resolve_cve,
@@ -451,11 +727,29 @@ ACTION_MAP = {
     "prepare_rewrite": _action_prepare_rewrite,
     "run_verify": _action_run_verify,
     "check_verify_result": _action_check_verify_result,
+    "fix_environment": _action_fix_environment,
     "write_report": _action_write_report,
 }
 
 
+def _check_docker_env():
+    """Warn if we appear to be running outside the Docker build environment."""
+    if not os.path.exists("/.dockerenv"):
+        try:
+            proc = subprocess.run(
+                ["kpatch-build", "--version"],
+                capture_output=True, timeout=5,
+            )
+        except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+            proc = None
+        if proc is None or proc.returncode != 0:
+            print("⚠  未检测到 Docker 环境和 kpatch-build 命令")
+            print("   建议在 Docker 中运行：docker compose up agent")
+            print("   或安装依赖：pip install -r requirements.txt && pip install -e .\n")
+
+
 def main():
+    _check_docker_env()
     parser = argparse.ArgumentParser(
         description="Kernel CVE Livepatch Auto-Generation Agent")
     parser.add_argument("--cves", required=True,
@@ -470,9 +764,13 @@ def main():
     parser.add_argument("--no-llm", action="store_true",
                         help="Disable LLM usage and run rule-only planner")
     parser.add_argument("--llm-provider", default=None,
-                        help="LLM provider name (e.g., deepseek, qwen, openai)")
+                        help="LLM provider name (e.g., deepseek, openai, ollama)")
     parser.add_argument("--llm-model", default=None,
                         help="LLM model name to request from provider")
+    parser.add_argument("--vm-host", default=None,
+                        help="SSH target for runtime module verification, e.g. root@anolis-vm")
+    parser.add_argument("--vm-poc", default=None,
+                        help="Optional VM checker path; it must exit 0 only when mitigation holds")
 
     args = parser.parse_args()
 
@@ -507,10 +805,7 @@ def main():
                 cfg = LLMConfig.from_env()
             else:
                 cfg = LLMConfig()
-            if args.llm_provider:
-                setattr(cfg, 'provider', args.llm_provider)
-            if args.llm_model:
-                setattr(cfg, 'model', LLMConfig.normalize_model(args.llm_model))
+            cfg = _apply_llm_overrides(cfg, args.llm_provider, args.llm_model)
 
             llm_client = LLMClient(cfg)
             if not getattr(llm_client, 'ping', lambda: False)():
@@ -534,7 +829,8 @@ def main():
     # Process each CVE through the full pipeline
     for cve_id in cve_ids:
         print(f"[Processing] {cve_id}")
-        process_cve(cve_id, workdir, state_mgr, planner, cve_ids, llm_client)
+        process_cve(cve_id, workdir, state_mgr, planner, cve_ids, llm_client,
+                    args.vm_host, args.vm_poc)
         final_state = state_mgr.get_state(cve_id)
         print(f"[Done] {cve_id}: state={final_state.get('state')}, "
               f"status={final_state.get('status')}\n")

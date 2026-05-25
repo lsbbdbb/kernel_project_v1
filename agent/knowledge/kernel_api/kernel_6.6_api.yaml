@@ -90,3 +90,253 @@
   new_signature: "same (was pr_warning)"
   category: function_rename
   note: "pr_warning() is deprecated since 5.x. All patches should use pr_warn() instead."
+# ====================================================================
+# Livepatch core knowledge (sourced from kernel Documentation/livepatch/)
+# ====================================================================
+
+- symbol: klp_functions_basic
+  category: livepatch_knowledge
+  note: >
+    Livepatch redirects function entry via ftrace handler.
+    The patched function (new_func) is called instead of the original.
+    Only function-level granularity is supported — you cannot patch
+    individual lines inside a function. If a security fix modifies
+    multiple functions, ALL of them must be included in the patch.
+
+- symbol: klp_consistency_model
+  category: livepatch_knowledge
+  note: >
+    Livepatch uses per-task consistency: each task is migrated to the
+    patched code only when it's in a safe state (not on a patched
+    function's stack). The transition is complete when all tasks have
+    been migrated. 'forced' transition ignores safety checks but may
+    crash if a patched function is on the stack. Use force only as
+    last resort for critical security fixes.
+
+- symbol: klp_stack_check
+  category: livepatch_knowledge
+  note: >
+    A function can only be livepatched when no task has it on the
+    call stack. This is why livepatches cannot patch __init functions
+    (they may have already exited) or functions that are always in use.
+    Check stack consistency with 'cat /sys/kernel/livepatch/<patch>/transition'.
+
+- symbol: klp_atomic_replace
+  category: livepatch_knowledge
+  note: >
+    Cumulative patches with .replace = true atomically supersede all
+    older livepatches. This removes ftrace handlers from functions
+    no longer modified. All processes migrate to the new patch in one
+    transition. Once the transition finishes, older patches are disabled.
+    Cannot easily reverse; downgrading requires loading the old patch
+    again (if transition was not forced).
+
+- symbol: klp_callbacks
+  category: livepatch_knowledge
+  note: >
+    Callbacks (pre_patch, post_patch, pre_unpatch, post_unpatch) are
+    executed during patch transition. Use pre_patch to prepare global
+    state before patching, post_patch to initialize shadow variables.
+    Callbacks are the only way to safely patch init/probe functions
+    and assembly code. Only callbacks from the NEW cumulative patch
+    are executed; replaced patches' callbacks are ignored.
+
+# ====================================================================
+# kpatch-build specific knowledge (kpatch limitations and patterns)
+# ====================================================================
+
+- symbol: kpatch_limit_no_fentry
+  category: kpatch_limit
+  note: >
+    kpatch-build requires functions to have a ftrace entry point
+    (fentry call). Functions without fentry include:
+    - ASM functions (not compiled with -pg)
+    - inline functions (not present as standalone symbols)
+    - static functions that got inlined by the compiler
+    - Functions with __attribute__((no_instrument_function))
+    Workaround: Find the caller that IS traceable and patch there,
+    or use livepatch callbacks for initialization code.
+
+- symbol: kpatch_limit_init_functions
+  category: kpatch_limit
+  note: >
+    Functions marked __init are freed after kernel initialization.
+    kpatch-build cannot patch them because the code no longer exists.
+    If the original patch modifies an __init function, either:
+    1. Move the fix to a non-init caller
+    2. Use livepatch callbacks (pre_patch / post_patch) to run the
+       fix during patch loading
+
+- symbol: kpatch_limit_static_data
+  category: kpatch_limit
+  note: >
+    Static/global data changes cannot be livepatched because the
+    data section is not redirected. Specifically:
+    - New static variables declared in the patch
+    - Changes to existing static data layouts
+    - EXPORT_SYMBOL changes
+    Workaround: Use shadow variables (klp_shadow_alloc/get/free) to
+    attach new data to existing objects at runtime. For simple flag
+    changes, use static_branch or existing atomic_t variables.
+
+- symbol: kpatch_limit_struct_layout
+  category: kpatch_limit
+  note: >
+    If the patch changes a structure definition (adds/removes fields,
+    changes field types), kpatch-build reports a CRC mismatch.
+    This is because kpatch checks struct layout compatibility via
+    genksym CRC. Workarounds:
+    1. If the new field is at the end and unused by existing code,
+       use shadow variables to attach the data instead.
+    2. If the structure is embedded in another, the entire enclosing
+       struct's CRC changes too.
+    3. For structures with flexible array members at the end, adding
+       new fields before the flexible member is NOT compatible.
+
+- symbol: kpatch_limit_new_globals
+  category: kpatch_limit
+  note: >
+    Introducing new global variables in a livepatch is generally not
+    allowed because the module's data section is not visible to the
+    rest of the kernel at the patched addresses. If you need global
+    state, use:
+    1. Static variables inside the patch module (each patch has its
+       own data section — OK for per-patch state)
+    2. Shadow variables (klp_shadow_*) for per-object data
+    3. Existing global variables via EXPORT_SYMBOL
+
+- symbol: kpatch_limit_debug_info
+  category: kpatch_limit
+  note: >
+    kpatch-build compares the original and new .o files at the ELF
+    level. It reports 'unreconcilable difference' when debug info
+    sections (.debug_*) or symbol tables differ in ways it cannot
+    map. Common causes:
+    - Different compiler versions for original vs. new build
+    - Different kernel config options changing struct layout
+    - ASM macro expansions differing due to config changes
+    Solution: Rebuild the target kernel with the exact same .config
+    and compiler used for the original vmlinux.
+
+# ====================================================================
+# Key kernel structure changes (6.6 vs older kernels)
+# ====================================================================
+
+- symbol: struct_file_operations
+  old_signature: "struct file_operations { ... loff_t (*llseek)(...); ssize_t (*read)(...); ... }"
+  new_signature: "struct file_operations { ... loff_t (*llseek)(...); ssize_t (*read)(...); ... }"
+  category: struct_layout
+  note: >
+    In 6.6, file_operations added ->uring_cmd and ->uring_cmd_iopoll
+    fields. Any patch that defines a static file_operations instance
+    must include these new fields (or use designated initializers).
+    Also, ->flush() signature: added fmode_t parameter in 5.19+.
+
+- symbol: struct_ethtool_ops
+  old_signature: "struct ethtool_ops { int (*get_settings)(...); ... }"
+  new_signature: "struct ethtool_ops { int (*get_link_ksettings)(...); ... }"
+  category: struct_layout
+  note: >
+    In 5.x+, ethtool_ops deprecated get_settings/set_settings in
+    favor of get_link_ksettings/set_link_ksettings. In 6.6 only
+    the new API exists. Patches referencing old ethtool_ops fields
+    will fail to compile.
+
+- symbol: struct_net_device_ops
+  old_signature: "struct net_device_ops { netdev_tx_t (*ndo_start_xmit)(...); ... }"
+  new_signature: "struct net_device_ops { netdev_tx_t (*ndo_start_xmit)(...); ... }"
+  category: struct_layout
+  note: >
+    In 6.6, ndo_get_stats64 is mandatory (removed fallback to
+    ndo_get_stats). struct net_device_ops added .ndo_bpf in 5.x+.
+    Check that all callback function pointers match the 6.6 signature.
+
+- symbol: struct_timer_list
+  category: struct_layout
+  note: >
+    In 6.6, timer_list uses callback type void (*)(struct timer_list *).
+    Older code with void (*)(unsigned long) callbacks will not compile.
+    The setup_timer() API was removed; use timer_setup() instead.
+    The timer's unsigned long 'data' field was removed in 6.1+.
+
+- symbol: struct_kthread_worker
+  category: struct_layout
+  note: >
+    In 6.6, kthread_worker struct added 'flags' field and work_queue
+    timeout tracking. Patches that directly manipulate kthread_worker
+    fields may need adjustment. Use kthread_init_worker() and
+    kthread_queue_work() APIs instead of direct field access.
+
+# ====================================================================
+# Patch adaptation case studies (real-world examples)
+# ====================================================================
+
+- symbol: case_hlist_for_each_entry_rcu
+  category: adaptation_case
+  note: >
+    Common pattern: Older patches use hlist_for_each_entry_rcu(pos, head, member)
+    with 3 arguments. In 6.6, rcu_dereference() check was added as 4th argument:
+    hlist_for_each_entry_rcu(pos, head, member, cond).
+    Fix: Add 'true' as the 4th argument to bypass the check, or add a meaningful
+    RCU condition. Example:
+    -  hlist_for_each_entry_rcu(entry, head, member)
+    +  hlist_for_each_entry_rcu(entry, head, member, true)
+
+- symbol: case_proc_create_single
+  category: adaptation_case
+  note: >
+    Old: struct file_operations + proc_create() with custom read/write.
+    New: proc_create_single(name, mode, parent, show_func) for read-only
+    proc files. Removes need for manual seq_file ops.
+    In 6.6, proc_create() still works but proc_create_single is preferred.
+    If the original patch uses seq_printf/seq_puts in a show() function,
+    converting to proc_create_single is straightforward.
+
+- symbol: case_ACCESS_ONCE_to_READ_ONCE
+  category: adaptation_case
+  note: >
+    ACCESS_ONCE() was removed in 4.17+. In 6.6, use READ_ONCE() /
+    WRITE_ONCE() / data_race() instead. Common adaptation:
+    -  #define ACCESS_ONCE(x) (* (volatile typeof(x) *) &(x))
+    +  #include <asm/barrier.h>
+    +  READ_ONCE(x) / WRITE_ONCE(x, val)
+    For KCSAN annotations, use data_race(expr) when the access is
+    intentionally not synchronized.
+
+- symbol: case_kstrto_introduction
+  category: adaptation_case
+  note: >
+    Old patches using strict_strtol() / strict_strtoul() / simple_strtol()
+    need updating. In 6.6 only kstrto*() variants exist:
+    kstrtol(), kstrtoul(), kstrtoint(), kstrtouint(), kstrtoull(), kstrtoll().
+    These return int error codes (0 on success, -EINVAL on invalid input,
+    -ERANGE on overflow). Always check the return value.
+
+- symbol: case_timeval_deprecation
+  category: adaptation_case
+  note: >
+    struct timeval is fully removed in 6.6. All usage must be replaced
+    with ktime_t / timespec64 / ns:
+    -  struct timeval tv; do_gettimeofday(&tv); tv.tv_sec
+    +  ktime_t kt = ktime_get_real(); ktime_to_ns(kt)
+    or:
+    +  struct timespec64 ts; ktime_get_real_ts64(&ts); ts.tv_sec
+
+- symbol: case_ida_simple_to_ida_alloc
+  category: adaptation_case
+  note: >
+    ida_simple_get() / ida_simple_remove() were deprecated in 6.4+ and
+    fully removed in some 6.6 configs. Use ida_alloc() / ida_free() instead:
+    -  int id = ida_simple_get(&ida, 0, 0, GFP_KERNEL);
+    +  int id = ida_alloc(&ida, GFP_KERNEL);
+    -  ida_simple_remove(&ida, id);
+    +  ida_free(&ida, id);
+    Return value: ida_alloc() returns negative errno on failure, >= 0 on success.
+
+- symbol: case_sigset_t_to_sigset_size
+  category: adaptation_case
+  note: >
+    In 6.6, sigset_t is variable-size on some architectures (EXPAND_SIGNALS).
+    Patches that declare sigset_t on stack or embed it in structures may
+    break. Use SIGSET_BITS_PER_WORD and SIGSET_WORDS_COUNT macros instead
+    of fixed sizes. 

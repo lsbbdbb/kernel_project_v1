@@ -22,16 +22,13 @@ class KpatchBuilder:
     def build(self, patch_path: str, source_dir: str, vmlinux_path: str,
               kernel_source_rpm: Optional[str] = None,
               kernel_devel_path: Optional[str] = None,
-              attempt: int = 1,
-              expected_kernel_version: Optional[str] = None) -> Dict:
+              attempt: int = 1) -> Dict:
         log_path = os.path.join(self.logs_dir, f"build_{attempt}.log")
         result = {
             "attempt": attempt,
             "input_patch": patch_path,
             "source_dir": source_dir,
             "vmlinux": vmlinux_path,
-            "expected_kernel_version": expected_kernel_version,
-            "detected_kernel_version": None,
             "return_code": -1,
             "success": False,
             "artifact_path": None,
@@ -43,25 +40,14 @@ class KpatchBuilder:
         patch_path = os.path.abspath(patch_path)
         source_dir = os.path.abspath(source_dir)
         vmlinux_path = os.path.abspath(vmlinux_path)
-        if expected_kernel_version:
-            release_error = self._validate_kernel_release(source_dir, expected_kernel_version, result)
-            if release_error:
-                with open(log_path, "w") as log_file:
-                    log_file.write(f"ERROR: {release_error}\n")
-                result["error"] = release_error
-                result["return_code"] = 2
-                return self._save_result(result, attempt)
-        cmd = ["kpatch-build", "--skip-compiler-check", "-s", source_dir, "-v", vmlinux_path, patch_path]
+        cmd = ["kpatch-build", "-s", source_dir, "-v", vmlinux_path, patch_path]
         if kernel_devel_path:
             cmd.extend(["-d", kernel_devel_path])
         try:
-            # Pass srctree=. and CC=gcc in environment — without them the
-            # Docker-compiled scripts/kconfig/conf cannot find cc-version.sh
-            build_env = {**os.environ, "srctree": source_dir, "CC": "gcc", "LD": "ld"}
             with open(log_path, "w") as log_file:
                 proc = subprocess.run(
-                    cmd, stdout=log_file, stderr=subprocess.STDOUT, timeout=7200,
-                    cwd=self.artifacts_dir, env=build_env)
+                    cmd, stdout=log_file, stderr=subprocess.STDOUT, timeout=1800,
+                    cwd=self.artifacts_dir)
             result["return_code"] = proc.returncode
             result["success"] = proc.returncode == 0
             if proc.returncode == 0:
@@ -96,27 +82,6 @@ class KpatchBuilder:
                 except Exception:
                     pass
 
-        return self._save_result(result, attempt)
-
-    @staticmethod
-    def _validate_kernel_release(source_dir: str, expected: str, result: Dict) -> Optional[str]:
-        try:
-            proc = subprocess.run(
-                ["make", "-s", "kernelrelease"], cwd=source_dir,
-                capture_output=True, text=True, timeout=60,
-                env={**os.environ, "LC_ALL": "C", "LANG": "C"},
-            )
-        except Exception as exc:
-            return f"unable to determine source kernel release: {exc}"
-        detected = proc.stdout.strip()
-        result["detected_kernel_version"] = detected or None
-        if proc.returncode != 0:
-            return f"unable to determine source kernel release: {proc.stderr.strip()}"
-        if detected != expected:
-            return f"kernel release mismatch: expected {expected}, got {detected}"
-        return None
-
-    def _save_result(self, result: Dict, attempt: int) -> Dict:
         result["finished_at"] = datetime.now(timezone.utc).isoformat()
         tool_result_path = os.path.join(self.logs_dir, f"build_result_{attempt}.json")
         with open(tool_result_path, "w") as f:

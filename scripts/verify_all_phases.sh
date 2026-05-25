@@ -106,10 +106,10 @@ check "LLMClient module exists" \
     python -c "from agent.llm.client import LLMClient"
 
 check "LLMConfig.from_env() works" \
-    python -c "from agent.llm.config import LLMConfig; c=LLMConfig.from_env(); assert c.provider in ('deepseek','qwen','openai','ollama')"
+    python -c "from agent.llm.config import LLMConfig; c=LLMConfig.from_env(); assert c.provider in ('deepseek','openai','ollama')"
 
-check "LLMConfig supports qwen/deepseek/openai/ollama" \
-    python -c "from agent.llm.config import LLMConfig, DEFAULT_BASE_URLS; assert 'qwen' in DEFAULT_BASE_URLS; assert 'deepseek' in DEFAULT_BASE_URLS"
+check "LLMConfig supports deepseek/openai/ollama" \
+    python -c "from agent.llm.config import LLMConfig, DEFAULT_BASE_URLS; assert 'deepseek' in DEFAULT_BASE_URLS"
 
 check "LLMClient.ping() returns False without API key" \
     python -c "from agent.llm.client import LLMClient; from agent.llm.config import LLMConfig; c=LLMClient(LLMConfig(provider='deepseek',api_key=None)); assert c.ping() == False"
@@ -248,13 +248,13 @@ patch = '@@ -100,6 +100,8 @@\n+       if (!sk)\n+               return -EINVAL;\
 assert sv.validate(patch, patch)['valid'] == True
 "
 
-check "create_rewrite_plan elevates rewrite_allowed when LLM available (mock)" \
+check "create_rewrite_plan preserves manual gate even when LLM is available" \
     python -c "
 import tempfile, os
 from agent.tools.rewrite_advisor import RewriteAdvisor
 d = tempfile.mkdtemp()
 r = RewriteAdvisor(d, 'CVE-X')
-# struct_abi with rewrite_allowed=False should stay manual_required without LLM
+# struct_abi with rewrite_allowed=False must remain manual_required with or without LLM
 from unittest.mock import MagicMock
 mock_llm = MagicMock()
 mock_llm.ping.return_value = True
@@ -264,7 +264,7 @@ units = {'units':[{'change_id':'CU-001','file':'x.c','function':'f','rewrite_all
 plan_no_llm = r.create_rewrite_plan(failure, units, 1)
 plan_llm    = r2.create_rewrite_plan(failure, units, 1)
 assert plan_no_llm['decision'] == 'manual_required', 'without LLM should deny'
-assert plan_llm['decision'] == 'rewrite', 'with LLM should elevate'
+assert plan_llm['decision'] == 'manual_required', 'LLM must not override ABI safety gate'
 "
 
 echo ""
@@ -284,13 +284,13 @@ check "load_yaml_rules returns chunks" \
     python -c "from agent.rag.knowledge_base import KnowledgeBase; kb=KnowledgeBase(); n=kb.load_yaml_rules(); assert n >= 9, f'got {n}'"
 
 check "load kernel API YAML returns chunks" \
-    python -c "from agent.rag.knowledge_base import KnowledgeBase; kb=KnowledgeBase(); n=kb.load_kernel_api_yaml(); assert n == 15, f'got {n}'"
+    python -c "from agent.rag.knowledge_base import KnowledgeBase; kb=KnowledgeBase(); n=kb.load_kernel_api_yaml(); assert n == 38, f'got {n}'"
 
 check "kernel_6.6_api.yaml exists" \
     test -f agent/knowledge/kernel_api/kernel_6.6_api.yaml
 
-check "kernel_6.6_api.yaml has 15 entries" \
-    python -c "import yaml; d=yaml.safe_load(open('agent/knowledge/kernel_api/kernel_6.6_api.yaml')); assert len(d)==15, f'got {len(d)}'"
+check "kernel_6.6_api.yaml has 38 entries" \
+    python -c "import yaml; d=yaml.safe_load(open('agent/knowledge/kernel_api/kernel_6.6_api.yaml')); assert len(d)==38, f'got {len(d)}'"
 
 check "chunk content is rich (contains matchers)" \
     python -c "

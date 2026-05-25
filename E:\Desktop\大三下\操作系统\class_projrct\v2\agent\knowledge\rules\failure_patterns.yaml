@@ -38,8 +38,6 @@
   matchers:
     - "no fentry call"
     - "function is not traceable"
-    - "modified functions must not be __init"
-    - "is __init/__devinit"
   action: manual_required
   auto_retry_allowed: false
   requires_human_review: true
@@ -104,63 +102,4 @@
     - "ERROR:.*vmlinux"
   action: fix_environment
   auto_retry_allowed: false
-  requires_human_review: false
-
-- pattern_id: env.source_permission
-  category: env_missing
-  reason_code: source_permission_denied
-  matchers:
-    - "Permission denied"
-    - "Operation not permitted"
-  action: fix_environment
-  auto_retry_allowed: false
-  requires_human_review: false
-
-- pattern_id: env.git_ownership
-  category: env_missing
-  reason_code: git_unsafe_ownership
-  matchers:
-    - "detected dubious ownership"
-    - "safe.directory"
-  action: fix_environment
-  auto_retry_allowed: false
-  requires_human_review: false
-
-- pattern_id: env.kernel_release_mismatch
-  category: env_missing
-  reason_code: kernel_mismatch
-  matchers:
-    - "kernel release mismatch"
-  action: fix_environment
-  auto_retry_allowed: false
-  requires_human_review: false
-
-- pattern_id: env.setlocalversion_unsupported
-  category: env_missing
-  reason_code: setlocalversion_incompatible
-  matchers:
-    - "Usage: ./scripts/setlocalversion"
-    - "--save-scmversion"
-  action: fix_environment
-  auto_retry_allowed: false
-  requires_human_review: false
-
-- pattern_id: config.module_disabled
-  category: config
-  reason_code: module_disabled
-  matchers:
-    - "no changed objects found"
-  action: skip
-  auto_retry_allowed: false
-  requires_human_review: false
-
-- pattern_id: env.syncconfig
-  category: env_missing
-  reason_code: syncconfig
-  matchers:
-    - "Error during sync of the configuration"
-    - "syncconfig"
-    - "include/config/auto.conf"
-  action: fix_environment
-  auto_retry_allowed: true
   requires_human_review: false

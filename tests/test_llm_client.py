@@ -21,24 +21,9 @@ class FakeClient:
         self.chat = SimpleNamespace(completions=FakeCompletions())
 
 
-def test_config_from_env_qwen(monkeypatch):
-    monkeypatch.delenv("LLM_PROVIDER", raising=False)
-    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
-    monkeypatch.setenv("DASHSCOPE_API_KEY", "test-key")
-    monkeypatch.setenv("LLM_MODEL", "qwen-plus")
-
-    config = LLMConfig.from_env()
-
-    assert config.provider == "qwen"
-    assert config.model == "qwen-plus"
-    assert config.api_key == "test-key"
-    assert config.is_configured()
-
-
 def test_config_defaults_to_deepseek_v4_pro(monkeypatch):
     monkeypatch.delenv("LLM_PROVIDER", raising=False)
     monkeypatch.delenv("LLM_MODEL", raising=False)
-    monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("OLLAMA_API_KEY", raising=False)
@@ -51,7 +36,6 @@ def test_config_defaults_to_deepseek_v4_pro(monkeypatch):
 
 
 def test_config_from_env_deepseek(monkeypatch):
-    monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
     monkeypatch.setenv("LLM_PROVIDER", "deepseek")
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
 
@@ -83,12 +67,12 @@ def test_ping_false_without_key():
 
 def test_chat_uses_injected_client():
     fake = FakeClient()
-    config = LLMConfig(api_key="test-key", model="qwen-plus")
+    config = LLMConfig(api_key="test-key", model="deepseek-v4-pro")
     client = LLMClient(config, client=fake)
 
     result = client.chat([{"role": "user", "content": "ping"}])
 
     assert result == "OK"
-    assert fake.chat.completions.calls[0]["model"] == "qwen-plus"
+    assert fake.chat.completions.calls[0]["model"] == "deepseek-v4-pro"
     assert fake.chat.completions.calls[0]["messages"][0]["content"] == "ping"
     assert client.ping() is True
