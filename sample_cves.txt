@@ -1,3 +1,33 @@
-# Sample CVE list for testing
+# Sample CVE list for testing - Kernel CVE Livepatch Auto-Generation Agent
+# Each line represents a CVE with a different kpatch scenario
+# Usage: ./run --cves sample_cves.txt --workdir ./output
+
+# Success path - simple boundary check (expected: success)
 CVE-2026-0001
+
+# API mismatch - function signature changed (expected: compile/api_mismatch)
 CVE-2026-0002
+
+# No fentry - function not traceable (expected: kpatch_limit/no_fentry)
+CVE-2026-0003
+
+# Struct ABI - structure layout change (expected: kpatch_limit/struct_or_data_change)
+CVE-2026-0004
+
+# Static data - static variable modification (expected: kpatch_limit/struct_or_data_change)
+CVE-2026-0005
+
+# Hunk failed - context drift in patch (expected: patch_apply/hunk_failed)
+CVE-2026-0006
+
+# Missing include - implicit function declaration (expected: compile/missing_api_or_include)
+CVE-2026-0007
+
+# Undefined symbol - missing helper function (expected: compile/missing_api_or_include)
+CVE-2026-0008
+
+# Init function - __init function modification (expected: kpatch_limit/no_fentry)
+CVE-2026-0009
+
+# Multi-file - cross-file patch with struct field mismatch (expected: compile/field_mismatch)
+CVE-2026-0010
