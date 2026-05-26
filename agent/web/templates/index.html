@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kernel Livepatch Agent — 控制面板</title>
+<style>
+/* ===== Reset & Base ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f172a;
+  --surface: #1e293b;
+  --surface2: #334155;
+  --border: #475569;
+  --text: #e2e8f0;
+  --text-dim: #94a3b8;
+  --accent: #38bdf8;
+  --green: #22c55e;
+  --yellow: #eab308;
+  --red: #ef4444;
+  --orange: #f97316;
+  --purple: #a855f7;
+  --pipeline-h: 80px;
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+a { color: var(--accent); text-decoration: none; }
+
+/* ===== Layout ===== */
+.container { max-width: 1440px; margin: 0 auto; padding: 16px 20px; }
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 20px; background: var(--surface);
+  border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 8px;
+}
+.header-left { display: flex; align-items: center; gap: 12px; }
+.header-left h1 { font-size: 18px; font-weight: 600; }
+.status-dot {
+  display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--text-dim); flex-shrink: 0;
+}
+.status-dot.running { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.status-dot.idle { background: var(--yellow); }
+.status-dot.completed { background: var(--accent); }
+.status-dot.no_data { background: var(--text-dim); }
+.header-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface2); color: var(--text); cursor: pointer;
+  font-size: 13px; transition: all .15s;
+}
+.btn:hover { background: var(--border); }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn-primary { background: var(--accent); color: #0f172a; border-color: var(--accent); font-weight: 600; }
+.btn-primary:hover { filter: brightness(1.15); }
+.btn-danger { background: var(--red); color: #fff; border-color: var(--red); }
+.btn-danger:hover { filter: brightness(1.15); }
+
+/* ===== Tabs ===== */
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-top: 16px; }
+.tab {
+  padding: 8px 20px; cursor: pointer; font-size: 13px; font-weight: 500;
+  border-bottom: 2px solid transparent; color: var(--text-dim); transition: all .15s;
+  background: none; border-top: none; border-left: none; border-right: none;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-content { display: none; padding: 16px 0; }
+.tab-content.active { display: block; }
+
+/* ===== Pipeline Flow ===== */
+.pipeline-wrapper { overflow-x: auto; padding: 16px 0; }
+.pipeline {
+  display: flex; align-items: flex-start; gap: 4px; min-width: max-content;
+}
+.pipeline-node {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  min-width: 96px; max-width: 96px;
+}
+.pipeline-node .node-box {
+  width: 88px; padding: 6px 4px; border-radius: 6px;
+  text-align: center; font-size: 10px; line-height: 1.3; font-weight: 500;
+  background: var(--surface2); border: 1px solid var(--border); color: var(--text-dim);
+  transition: all .3s; cursor: default;
+}
+.pipeline-node .node-box.active {
+  background: var(--accent); color: #0f172a; border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(56,189,248,.4);
+}
+.pipeline-node .node-box.done {
+  background: #064e3b; border-color: var(--green); color: var(--green);
+}
+.pipeline-node .node-box.failed {
+  background: #450a0a; border-color: var(--red); color: var(--red);
+}
+.pipeline-node .node-box.skipped {
+  background: #1c1917; border-color: var(--yellow); color: var(--yellow);
+}
+.pipeline-arrow {
+  flex-shrink: 0; font-size: 18px; color: var(--border);
+  padding-top: 16px; line-height: 1;
+}
+.pipeline-node .node-label { font-size: 9px; color: var(--text-dim); text-align: center; }
+
+/* ===== Stats Cards ===== */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 16px; }
+.stat-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 14px;
+}
+.stat-card .stat-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .5px; }
+.stat-card .stat-value { font-size: 22px; font-weight: 700; margin-top: 2px; }
+.stat-card .stat-value.green { color: var(--green); }
+.stat-card .stat-value.yellow { color: var(--yellow); }
+.stat-card .stat-value.red { color: var(--red); }
+.stat-card .stat-value.blue { color: var(--accent); }
+
+/* ===== CVE Grid ===== */
+.cve-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+.cve-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 14px; cursor: pointer; transition: all .15s;
+}
+.cve-card:hover { border-color: var(--accent); }
+.cve-card .cve-header { display: flex; justify-content: space-between; align-items: center; }
+.cve-card .cve-id { font-weight: 600; font-size: 14px; }
+.cve-card .cve-state { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 500; }
+.badge-running { background: #065f46; color: var(--green); }
+.badge-idle { background: #1c1917; color: var(--yellow); }
+.badge-success { background: #064e3b; color: var(--green); }
+.badge-failed { background: #450a0a; color: var(--red); }
+.badge-manual { background: #431407; color: var(--orange); }
+.badge-skipped { background: #1c1917; color: var(--text-dim); }
+.cve-card .cve-detail { margin-top: 8px; font-size: 12px; color: var(--text-dim); }
+.cve-card .cve-detail span { margin-right: 12px; }
+
+/* ===== Detail Panel (slide-out) ===== */
+.detail-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6);
+  z-index: 100;
+}
+.detail-overlay.open { display: block; }
+.detail-panel {
+  position: fixed; right: 0; top: 0; bottom: 0; width: 50%; min-width: 400px;
+  max-width: 720px; background: var(--surface); border-left: 1px solid var(--border);
+  z-index: 101; overflow-y: auto; padding: 20px; transform: translateX(100%);
+  transition: transform .25s ease;
+}
+.detail-panel.open { transform: translateX(0); }
+.detail-panel .close-btn {
+  float: right; background: none; border: none; color: var(--text-dim);
+  font-size: 22px; cursor: pointer;
+}
+.detail-panel .close-btn:hover { color: var(--text); }
+.detail-panel h2 { font-size: 16px; margin-bottom: 12px; }
+.detail-panel h3 { font-size: 13px; margin: 12px 0 6px; color: var(--text-dim); }
+.detail-panel .detail-section {
+  background: var(--surface2); border-radius: 6px; padding: 10px 12px;
+  margin-bottom: 8px; font-size: 12px;
+}
+.detail-panel pre {
+  background: #0f172a; border-radius: 4px; padding: 8px; font-size: 11px;
+  overflow-x: auto; max-height: 300px; color: var(--text);
+}
+.detail-panel .attempt-item {
+  padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px;
+}
+
+/* ===== Log Viewer ===== */
+.log-box {
+  background: #0f172a; border: 1px solid var(--border); border-radius: 6px;
+  padding: 10px 12px; font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px; max-height: 400px; overflow-y: auto; color: #a8b2c1;
+  white-space: pre-wrap; word-break: break-all; margin-top: 6px;
+}
+
+/* ===== Environment ===== */
+.env-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.env-item { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 12px; }
+.env-item .env-key { color: var(--text-dim); font-size: 10px; text-transform: uppercase; }
+.env-item .env-val { margin-top: 2px; word-break: break-all; }
+
+/* ===== Principle / Architecture ===== */
+.principle-section { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+.principle-section h3 { font-size: 15px; margin-bottom: 8px; color: var(--accent); }
+.principle-section p, .principle-section li { font-size: 13px; color: var(--text-dim); line-height: 1.7; }
+.principle-section ul { padding-left: 18px; }
+.principle-section code { background: var(--surface2); padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+
+/* ===== Run Config Form ===== */
+.run-form { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+.run-form .form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; margin-bottom: 10px; }
+.run-form label { display: block; font-size: 11px; color: var(--text-dim); margin-bottom: 2px; }
+.run-form input, .run-form select {
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 4px;
+  padding: 6px 10px; color: var(--text); font-size: 13px; width: 200px;
+}
+.run-form input:focus, .run-form select:focus { outline: none; border-color: var(--accent); }
+.run-form .checkbox-row { display: flex; align-items: center; gap: 6px; }
+.run-form .checkbox-row input { width: auto; }
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+  .detail-panel { width: 100%; min-width: auto; }
+  .cve-grid { grid-template-columns: 1fr; }
+  .run-form input, .run-form select { width: 100%; }
+}
+
+/* ===== Animations ===== */
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+.pulse { animation: pulse 1.5s ease-in-out infinite; }
+
+/* ===== Toast ===== */
+.toast {
+  position: fixed; bottom: 20px; right: 20px; background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 8px; padding: 10px 16px;
+  font-size: 13px; z-index: 200; display: none; max-width: 400px;
+}
+.toast.show { display: block; animation: fadeIn .2s; }
+.toast.success { border-color: var(--green); }
+.toast.error { border-color: var(--red); }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+
+<!-- ===== Header ===== -->
+<header>
+  <div class="header-left">
+    <span class="status-dot no_data pulse" id="statusDot"></span>
+    <h1>Kernel Livepatch Agent</h1>
+    <span style="font-size:12px;color:var(--text-dim)" id="statusText">加载中…</span>
+  </div>
+  <div class="header-controls">
+    <span class="btn" onclick="scanWorkdir()">🔄 扫描</span>
+    <span class="btn btn-primary" onclick="showRunForm()">▶ 启动</span>
+    <span class="btn btn-danger" onclick="stopAgent()">⏹ 停止</span>
+  </div>
+</header>
+
+<div class="container">
+
+<!-- ===== Tabs ===== -->
+<div class="tabs">
+  <button class="tab active" data-tab="dashboard">📊 仪表盘</button>
+  <button class="tab" data-tab="pipeline">🔀 流程图</button>
+  <button class="tab" data-tab="principles">📖 原理说明</button>
+  <button class="tab" data-tab="env">⚙️ 环境</button>
+</div>
+
+<!-- ===== Tab: Dashboard ===== -->
+<div class="tab-content active" id="tab-dashboard">
+  <div class="stats-grid" id="statsGrid">
+    <div class="stat-card"><div class="stat-label">CVE 总数</div><div class="stat-value blue" id="statTotal">-</div></div>
+    <div class="stat-card"><div class="stat-label">成功</div><div class="stat-value green" id="statSuccess">-</div></div>
+    <div class="stat-card"><div class="stat-label">失败</div><div class="stat-value red" id="statFailed">-</div></div>
+    <div class="stat-card"><div class="stat-label">需人工介入</div><div class="stat-value yellow" id="statManual">-</div></div>
+    <div class="stat-card"><div class="stat-label">跳过</div><div class="stat-value" id="statSkipped" style="color:var(--text-dim)">-</div></div>
+    <div class="stat-card"><div class="stat-label">内核版本</div><div class="stat-value" style="font-size:13px;font-weight:400" id="statKernel">-</div></div>
+  </div>
+
+  <div id="runFormContainer"></div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <h2 style="font-size:15px;font-weight:600">CVE 列表</h2>
+    <span style="font-size:12px;color:var(--text-dim)" id="lastUpdate"></span>
+  </div>
+  <div class="cve-grid" id="cveGrid"></div>
+</div>
+
+<!-- ===== Tab: Pipeline ===== -->
+<div class="tab-content" id="tab-pipeline">
+  <div class="pipeline-wrapper">
+    <div class="pipeline" id="pipelineFlow"></div>
+  </div>
+  <div style="margin-top:16px">
+    <h3 style="font-size:14px;margin-bottom:8px">图例</h3>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--text-dim)">
+      <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--surface2);border:1px solid var(--border);vertical-align:middle;margin-right:4px"></span> 未到达</span>
+      <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--accent);vertical-align:middle;margin-right:4px"></span> 当前活跃</span>
+      <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#064e3b;border:1px solid var(--green);vertical-align:middle;margin-right:4px"></span> 已完成</span>
+      <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#450a0a;border:1px solid var(--red);vertical-align:middle;margin-right:4px"></span> 失败/错误</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Tab: Principles ===== -->
+<div class="tab-content" id="tab-principles">
+  <div class="principle-section">
+    <h3>🎯 项目目标</h3>
+    <p>自动将上游 Linux 内核 CVE 修复补丁转化为目标内核（Anolis OS 6.6.102）的可加载 livepatch <code>.ko</code> 模块，全程无需人工介入。</p>
+  </div>
+  <div class="principle-section">
+    <h3>🔁 工作流程</h3>
+    <ol style="padding-left:18px">
+      <li><strong>CVE 解析</strong> — 从 NVD 和 Linux stable 仓库获取 CVE 元数据与补丁链接</li>
+      <li><strong>补丁获取 &amp; 解析</strong> — 下载原始 unified diff，解析为结构化的中间表示（patch_ir + change_units）</li>
+      <li><strong>目标检查</strong> — 验证目标内核源码树是否存在，检查 Kbuild Makefile 追踪 patched 对象是否被配置禁用</li>
+      <li><strong>补丁应用 &amp; 构建</strong> — 在目标内核上 dry-run 检查补丁可应用性，然后用 kpatch-build 编译 livepatch .ko</li>
+      <li><strong>失败分类</strong> — 当构建失败时，用 19 种预定义模式（+ YAML 规则）对构建日志进行归因</li>
+      <li><strong>自动重写</strong> — 基于失败原因选择 6 种改写策略（context_drift / api_mismatch / missing_include / struct_abi / data_change / no_fentry），可选 LLM 辅助生成</li>
+      <li><strong>验证</strong> — 在目标 VM（SSH）中加载 .ko，检查 sysfs 状态，执行可选的 PoC 验证</li>
+      <li><strong>报告生成</strong> — 输出结构化 report.json + summary.json</li>
+    </ol>
+  </div>
+  <div class="principle-section">
+    <h3>🧠 智能决策</h3>
+    <p>项目支持两级决策：</p>
+    <ul>
+      <li><strong>规则模式</strong>（<code>--no-llm</code>）— 纯确定性状态机 + YAML 规则驱动，适合无 API key 的环境</li>
+      <li><strong>LLM 增强模式</strong>（默认）— 在失败分类后咨询 LLM（DeepSeek/OpenAI/Ollama），辅助选择改写策略和生成重写 diff</li>
+    </ul>
+    <p>安全护栏：非可重试故障（struct_abi / no_fentry 等）即使 LLM 建议改写也强制转人工。</p>
+  </div>
+  <div class="principle-section">
+    <h3>🏗️ 架构</h3>
+    <ul>
+      <li><strong>状态机</strong> — 18 个预定义状态，JSON 持久化每次转移</li>
+      <li><strong>Planner</strong> — 决定每个 CVE 的下一步 action，支持 LLM 辅助决策</li>
+      <li><strong>工具链</strong> — 10 个独立工具（resolver / fetcher / parser / builder / classifier / advisor / verifier / reporter / config-checker / semantic-validator）</li>
+      <li><strong>RAG 知识库</strong> — BM25 检索器，索引 YAML 规则 + 内核 API 变更 + kpatch FAQ 文档</li>
+      <li><strong>语义验证器</strong> — 重写后的 patch 自动检查安全语义是否保持（安全检查、错误返回路径、内存泄漏等）</li>
+    </ul>
+  </div>
+  <div class="principle-section">
+    <h3>🛡️ 安全约束</h3>
+    <ul>
+      <li>不会修改 <code>__init</code> / <code>__exit</code> 函数</li>
+      <li>不会引入新的全局变量或 EXPORT_SYMBOL</li>
+      <li>不会移除原始 patch 中的安全检查（<code>if (!ptr)</code> / <code>WARN_ON</code> 等）</li>
+      <li>不会泄露 shadow 变量或动态分配内存</li>
+      <li>非可重试故障强制转人工，LLM 不能覆盖此安全门</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ===== Tab: Environment ===== -->
+<div class="tab-content" id="tab-env">
+  <div class="env-grid" id="envGrid"></div>
+</div>
+
+</div> <!-- /container -->
+
+<!-- ===== Detail Panel ===== -->
+<div class="detail-overlay" id="detailOverlay" onclick="closeDetail()"></div>
+<div class="detail-panel" id="detailPanel">
+  <button class="close-btn" onclick="closeDetail()">&times;</button>
+  <h2 id="detailTitle">CVE-xxxx-xxxxx</h2>
+  <div id="detailBody"></div>
+</div>
+
+<!-- ===== Toast ===== -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== State =====
+let stateCache = { cves: [], status: 'no_data' };
+let currentDetail = null;
+
+// ===== Tabs =====
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// ===== Toast =====
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show ' + (type || '');
+  setTimeout(() => t.classList.remove('show'), 4000);
+}
+
+// ===== Pipeline Render =====
+const PIPELINE_STATES = [
+  { id: 'TaskCreated', label: 'Task\nCreated' },
+  { id: 'CveResolved', label: 'CVE\nResolved' },
+  { id: 'PatchFetched', label: 'Patch\nFetched' },
+  { id: 'PatchAnalyzed', label: 'Patch\nAnalyzed' },
+  { id: 'TargetChecked', label: 'Target\nChecked' },
+  { id: 'PatchApplied', label: 'Patch\nApplied' },
+  { id: 'BuildRunning', label: 'Build\nRunning' },
+  { id: 'BuildSucceeded', label: 'Build\nSucceeded' },
+  { id: 'BuildFailed', label: 'Build\nFailed' },
+  { id: 'FailureClassified', label: 'Failure\nClassified' },
+  { id: 'RewritePrepared', label: 'Rewrite\nPrepared' },
+  { id: 'LoadTesting', label: 'Load\nTesting' },
+  { id: 'Verified', label: 'Verified' },
+  { id: 'VerifyFailed', label: 'Verify\nFailed' },
+  { id: 'FixEnvironment', label: 'Fix\nEnvironment' },
+  { id: 'ManualRequired', label: 'Manual\nRequired' },
+  { id: 'Skipped', label: 'Skipped' },
+  { id: 'ReportWritten', label: 'Report\nWritten' },
+];
+
+function renderPipeline(activeStates) {
+  const el = document.getElementById('pipelineFlow');
+  el.innerHTML = '';
+  PIPELINE_STATES.forEach((s, i) => {
+    const node = document.createElement('div');
+    node.className = 'pipeline-node';
+
+    const box = document.createElement('div');
+    box.className = 'node-box';
+    const info = activeStates[s.id];
+    if (info) {
+      if (info.status === 'success' || info.done) box.classList.add('done');
+      else if (info.status === 'failed' || info.failed) box.classList.add('failed');
+      else if (info.skipped) box.classList.add('skipped');
+      else box.classList.add('active');
+    }
+    box.textContent = s.label;
+    node.appendChild(box);
+
+    const label = document.createElement('div');
+    label.className = 'node-label';
+    if (info) {
+      label.textContent = info.count > 0 ? `${info.count} CVE` : '';
+    }
+    node.appendChild(label);
+
+    el.appendChild(node);
+
+    if (i < PIPELINE_STATES.length - 1) {
+      const arrow = document.createElement('div');
+      arrow.className = 'pipeline-arrow';
+      arrow.textContent = '→';
+      el.appendChild(arrow);
+    }
+  });
+}
+
+// ===== CVE Card =====
+function renderCveCards(cves) {
+  const grid = document.getElementById('cveGrid');
+  grid.innerHTML = '';
+  if (!cves || cves.length === 0) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-dim)">暂无 CVE 数据</div>';
+    return;
+  }
+  cves.forEach(c => {
+    const card = document.createElement('div');
+    card.className = 'cve-card';
+    const state = c.state || 'unknown';
+    const status = c.status;
+    let badgeClass = 'badge-idle';
+    if (status === 'success') badgeClass = 'badge-success';
+    else if (status === 'failed') badgeClass = 'badge-failed';
+    else if (status === 'manual_required') badgeClass = 'badge-manual';
+    else if (status === 'skipped') badgeClass = 'badge-skipped';
+    else if (cves.some(x => x.cve_id === c.cve_id && x.state)) badgeClass = 'badge-running';
+
+    card.innerHTML = `
+      <div class="cve-header">
+        <span class="cve-id">${c.cve_id}</span>
+        <span class="cve-state ${badgeClass}">${state}${status ? ' · ' + status : ''}</span>
+      </div>
+      <div class="cve-detail">
+        <span>尝试: ${c.attempt}/${c.max_attempts}</span>
+        <span>${c.has_artifact ? '✅ 有 .ko' : ''}</span>
+        <span>${c.error ? '⚠️ ' + c.error.slice(0, 60) : ''}</span>
+      </div>
+    `;
+    card.onclick = () => openDetail(c.cve_id);
+    grid.appendChild(card);
+  });
+}
+
+// ===== Stats =====
+function renderStats(data) {
+  const cves = data.cves || [];
+  const total = cves.length;
+  const success = cves.filter(c => c.status === 'success').length;
+  const failed = cves.filter(c => c.status === 'failed').length;
+  const manual = cves.filter(c => c.status === 'manual_required').length;
+  const skipped = cves.filter(c => c.status === 'skipped').length;
+
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statSuccess').textContent = success;
+  document.getElementById('statFailed').textContent = failed;
+  document.getElementById('statManual').textContent = manual;
+  document.getElementById('statSkipped').textContent = skipped;
+  document.getElementById('statKernel').textContent = data.kernel_version || '-';
+}
+
+// ===== Status Header =====
+function updateHeader(data) {
+  const dot = document.getElementById('statusDot');
+  const text = document.getElementById('statusText');
+  const status = data.status || 'no_data';
+  dot.className = 'status-dot ' + status;
+  if (status === 'running') {
+    dot.classList.add('pulse');
+    text.textContent = '运行中';
+  } else if (status === 'idle') {
+    text.textContent = '就绪（有未完成任务）';
+  } else if (status === 'completed') {
+    text.textContent = '已完成';
+  } else {
+    text.textContent = '无数据';
+  }
+}
+
+// ===== CVE Detail =====
+async function openDetail(cveId) {
+  currentDetail = cveId;
+  document.getElementById('detailOverlay').classList.add('open');
+  document.getElementById('detailPanel').classList.add('open');
+  document.getElementById('detailTitle').textContent = cveId;
+
+  const body = document.getElementById('detailBody');
+  body.innerHTML = '<p style="color:var(--text-dim)">加载中…</p>';
+
+  try {
+    const resp = await fetch(`/api/cve/${cveId}`);
+    const data = await resp.json();
+
+    let html = '';
+
+    // Attempts
+    if (data.attempts && data.attempts.length > 0) {
+      html += '<h3>尝试记录</h3>';
+      data.attempts.forEach(a => {
+        const idx = a.attempt_index || '?';
+        const strat = a.rewrite_plan || a.strategy || '—';
+        const result = a.result ? (a.result.success ? '✅' : '❌') : '—';
+        const src = a.rewrite_source || '—';
+        html += `<div class="attempt-item">#${idx} 策略: ${strat} 来源: ${src} ${result}`;
+        if (a.failure && a.failure.reason_code) {
+          html += ` 原因: ${a.failure.reason_code}`;
+        }
+        html += '</div>';
+      });
+    }
+
+    // Failure
+    if (data.metadata && Object.keys(data.metadata).length > 0) {
+      html += '<h3>CVE 元数据</h3><div class="detail-section">';
+      const nvd = data.metadata.nvd || {};
+      html += `<div>CVE ID: ${nvd.id || cveId}</div>`;
+      html += `<div>描述: ${(nvd.description || '').slice(0, 200)}</div>`;
+      if (nvd.metrics && nvd.metrics.cvssMetricV31) {
+        const cvss = nvd.metrics.cvssMetricV31[0];
+        html += `<div>CVSS: ${cvss.cvssData ? cvss.cvssData.baseScore + ' (' + cvss.cvssData.baseSeverity + ')' : '—'}</div>`;
+      }
+      html += '</div>';
+    }
+
+    // Patches
+    if (data.patches && Object.keys(data.patches).length > 0) {
+      html += '<h3>补丁文件</h3>';
+      for (const [name, content] of Object.entries(data.patches)) {
+        html += `<div style="margin-bottom:6px"><strong style="font-size:12px">${name}</strong></div>`;
+        html += `<pre>${escapeHtml(content.slice(0, 2000))}</pre>`;
+      }
+    }
+
+    // Change units
+    if (data.change_units && data.change_units.units) {
+      html += '<h3>变更单元</h3><div class="detail-section">';
+      data.change_units.units.forEach(u => {
+        const file = u.file || '?';
+        const func = u.function || '?';
+        const role = u.semantic_role || '?';
+        const allow = u.rewrite_allowed ? '✅' : '❌';
+        html += `<div>${u.change_id}: ${func} @ ${file} (${role}) ${allow}</div>`;
+      });
+      html += '</div>';
+    }
+
+    // Log links
+    html += '<h3>日志</h3><div class="detail-section">';
+    for (let i = 1; i <= 10; i++) {
+      html += `<div><a href="#" onclick="loadLog('${cveId}', ${i});return false">build_${i}.log</a></div>`;
+    }
+    html += '</div>';
+    html += '<div id="logViewer"></div>';
+
+    body.innerHTML = html;
+  } catch (e) {
+    body.innerHTML = `<p style="color:var(--red)">加载失败: ${e.message}</p>`;
+  }
+}
+
+function closeDetail() {
+  document.getElementById('detailOverlay').classList.remove('open');
+  document.getElementById('detailPanel').classList.remove('open');
+  currentDetail = null;
+}
+
+async function loadLog(cveId, attempt) {
+  const viewer = document.getElementById('logViewer');
+  viewer.innerHTML = '<div class="log-box">加载中…</div>';
+  try {
+    const resp = await fetch(`/api/logs/${cveId}/${attempt}`);
+    const data = await resp.json();
+    if (data.content) {
+      viewer.innerHTML = `<div class="log-box">${escapeHtml(data.content.slice(-30000))}</div>`;
+    } else {
+      viewer.innerHTML = `<div class="log-box">${data.error || '日志为空'}</div>`;
+    }
+  } catch (e) {
+    viewer.innerHTML = `<div class="log-box" style="color:var(--red)">${e.message}</div>`;
+  }
+}
+
+function escapeHtml(s) {
+  if (!s) return '';
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+// ===== Environment =====
+async function renderEnv() {
+  try {
+    const resp = await fetch('/api/environment');
+    const data = await resp.json();
+    const grid = document.getElementById('envGrid');
+
+    const items = [
+      { key: 'Docker 环境', val: data.docker ? '✅ 是' : '❌ 否' },
+      { key: 'Python', val: data.python || '—' },
+      { key: '工作目录', val: data.workdir || '—' },
+      { key: 'KERNEL_SRC', val: data.kernel_src || '—' },
+      { key: 'VMLINUX_PATH', val: data.vmlinux_path || '—' },
+      { key: 'LLM Provider', val: data.llm_provider || '—' },
+      { key: 'DeepSeek API Key', val: data.deepseek_key_set ? '✅ 已设置' : '❌ 未设置' },
+      { key: 'OpenAI API Key', val: data.openai_key_set ? '✅ 已设置' : '❌ 未设置' },
+    ];
+    if (data.run_config) {
+      items.push({ key: '配置·内核版本', val: data.run_config.kernel_version || '—' });
+      items.push({ key: '配置·最大尝试', val: String(data.run_config.max_attempts || '—') });
+      items.push({ key: '配置·创建时间', val: data.run_config.created_at || '—' });
+    }
+    grid.innerHTML = items.map(i =>
+      `<div class="env-item"><div class="env-key">${i.key}</div><div class="env-val">${i.val}</div></div>`
+    ).join('');
+  } catch (e) {
+    document.getElementById('envGrid').innerHTML = `<p style="color:var(--red)">加载失败: ${e.message}</p>`;
+  }
+}
+
+// ===== Run Form =====
+function showRunForm() {
+  const cont = document.getElementById('runFormContainer');
+  if (cont.innerHTML) {
+    cont.innerHTML = '';
+    return;
+  }
+  cont.innerHTML = `
+    <div class="run-form">
+      <h3 style="font-size:14px;margin-bottom:8px">启动新 Agent Run</h3>
+      <div class="form-row">
+        <div><label>CVE 文件</label><input type="text" id="runCves" value="sample_cves.txt" style="width:180px"></div>
+        <div><label>内核版本</label><input type="text" id="runKernel" value="6.6.102-5.2.an23.x86_64" style="width:220px"></div>
+        <div><label>最大尝试</label><input type="number" id="runAttempts" value="5" min="1" max="20" style="width:80px"></div>
+        <div class="checkbox-row"><input type="checkbox" id="runNoLlm"><label for="runNoLlm">纯规则模式 (--no-llm)</label></div>
+        <div><button class="btn btn-primary" onclick="startAgent()">▶ 启动</button></div>
+      </div>
+    </div>
+  `;
+}
+
+async function startAgent() {
+  const payload = {
+    cves: document.getElementById('runCves').value,
+    kernel_version: document.getElementById('runKernel').value,
+    max_attempts: parseInt(document.getElementById('runAttempts').value) || 5,
+    no_llm: document.getElementById('runNoLlm').checked,
+  };
+  try {
+    const resp = await fetch('/api/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json();
+    if (data.error) {
+      showToast('错误: ' + data.error, 'error');
+    } else {
+      showToast('Agent 已启动, 工作目录: ' + data.workdir, 'success');
+      document.getElementById('runFormContainer').innerHTML = '';
+    }
+  } catch (e) {
+    showToast('启动失败: ' + e.message, 'error');
+  }
+}
+
+async function stopAgent() {
+  if (!confirm('确定停止当前运行的 Agent？')) return;
+  try {
+    const resp = await fetch('/api/stop', { method: 'POST' });
+    const data = await resp.json();
+    showToast('Agent ' + data.status, data.status === 'stopped' ? 'success' : '');
+  } catch (e) {
+    showToast('停止失败: ' + e.message, 'error');
+  }
+}
+
+async function scanWorkdir() {
+  try {
+    const resp = await fetch('/api/scan', { method: 'POST' });
+    const data = await resp.json();
+    if (data.status === 'ok') {
+      showToast('已扫描: ' + data.workdir, 'success');
+    } else {
+      showToast(data.error || '扫描失败', 'error');
+    }
+  } catch (e) {
+    showToast('扫描失败: ' + e.message, 'error');
+  }
+}
+
+// ===== SSE Events =====
+function connectSSE() {
+  const evtSource = new EventSource('/api/events');
+
+  evtSource.onmessage = function(event) {
+    try {
+      const data = JSON.parse(event.data);
+      if (data._ts || data.cves) {
+        stateCache = data;
+        updateUI(data);
+      }
+    } catch (e) {
+      // ignore keepalive or parse errors
+    }
+  };
+
+  evtSource.onerror = function() {
+    // Will auto-reconnect
+  };
+}
+
+function updateUI(data) {
+  updateHeader(data);
+  renderStats(data);
+
+  // Build active state map for pipeline
+  const stateMap = {};
+  (data.cves || []).forEach(c => {
+    const st = c.state || 'TaskCreated';
+    if (!stateMap[st]) {
+      stateMap[st] = { count: 0, status: null };
+    }
+    stateMap[st].count++;
+    if (c.status === 'success') stateMap[st].status = 'success';
+    else if (c.status === 'failed') stateMap[st].status = 'failed';
+    else if (c.status === 'skipped') stateMap[st].skipped = true;
+    else stateMap[st].status = 'active';
+    // Mark downstream states as completed for terminal states
+    if (c.status === 'success' || c.status === 'failed' || c.status === 'skipped' || c.status === 'manual_required') {
+      // For terminal CVEs, mark the pipeline up to their state
+      let found = false;
+      PIPELINE_STATES.forEach(ps => {
+        if (ps.id === st) found = true;
+        if (found && !stateMap[ps.id]) {
+          stateMap[ps.id] = { count: 0, done: true };
+        }
+      });
+    }
+  });
+  renderPipeline(stateMap);
+  renderCveCards(data.cves || []);
+
+  document.getElementById('lastUpdate').textContent = '更新于 ' + new Date().toLocaleTimeString();
+}
+
+// ===== Init =====
+connectSSE();
+renderEnv();
+</script>
+</body>
+</html>
