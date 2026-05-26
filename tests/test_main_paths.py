@@ -318,7 +318,7 @@ def test_syncconfig_failure_does_not_auto_mutate_target_config(tmp_path, monkeyp
     source = tmp_path / "source"
     source.mkdir()
     marker = source / "auto-mutated"
-    (source / "Makefile").write_text(f"olddefconfig:\n\t@touch {marker}\n")
+    (source / "Makefile").write_text("olddefconfig:\n\texit 1\n")
     workdir = tmp_path / "run"
     cve_dir = workdir / cve_id
     cve_dir.mkdir(parents=True)

@@ -17,7 +17,7 @@
 | `agent/knowledge/` | YAML rule files (`failure_patterns.yaml`, `rewrite_strategies.yaml`) + kernel API knowledge |
 | `agent/llm/` | LLM client, config, prompt templates |
 | `agent/rag/` | Knowledge base + retriever (RAG injection into rewrite step) |
-| `tests/` | pytest suite (30 tests, all passing per README) |
+| `tests/` | pytest suite (111 tests, all passing) |
 | `kernel-src/` | Full Anolis OS 6.6 kernel source tree — do NOT edit or traverse |
 | `scripts/` | Shell helpers for env setup and verification |
 | `docs/` | Documentation and plans |
@@ -37,7 +37,7 @@
 
 - **snake_case** for functions/variables; **CamelCase** for classes
 - Tests use pytest, no `unittest.TestCase` — plain assert + pytest fixtures
-- State machine with 17 predefined `VALID_STATES` in `agent/state.py`; transitions logged as JSON events
+- State machine with 18 predefined `VALID_STATES` in `agent/state.py` (includes `FixEnvironment`); transitions logged as JSON events
 - Pipeline actions named with `_action_` prefix, mapped in `ACTION_MAP` dict
 - Per-CVE state persisted as JSON: `state.json`, `events.json`, `run_config.json`
 - YAML knowledge files in `agent/knowledge/rules/` define failure patterns and rewrite strategies
@@ -47,7 +47,8 @@
 ## Watch out for
 
 - **`kernel-src/` is a full kernel tree** (many thousands of files). Never read or traverse it unless explicitly asked. The `.gitignore` already excludes it from searches.
-- **LLM integration is a skeleton.** The `RewriteAdvisor` has an LLM rewrite path but falls back to simple rule-based transformations (`adjust_hunk_offsets`, `annotate_api_mismatch`) that are not strong rewrites. The `agent/rag/` directory has only `__init__.py` stubs — knowledge base isn't populated.
+- **LLM integration is production-grade.** `agent/llm/client.py` wraps the OpenAI-compatible SDK with 3 providers (DeepSeek/OpenAI/Ollama), auto-detection from env vars, and graceful fallback to rule-only mode. `agent/llm/prompts/templates.py` has 4 prompt templates for diagnosis, rewrite planning, diff generation, and retry decisions. The `LLMPlanner` in `agent/planner.py` consults the LLM at key decision points with safety overrides.
+- **RAG is a full BM25 implementation.** `agent/rag/knowledge_base.py` loads from 3 sources: YAML failure patterns/strategies, kernel API YAML, and `agent/knowledge/rag_knowledge/*.md` chunked documents. `agent/rag/retriever.py` uses `rank_bm25` (with a simple TF fallback). The retriever is wired into `RewriteAdvisor` for RAG-injected LLM rewrites.
 - **No lint/format config in the repo.** No `.flake8`, `.pylintrc`, `.editorconfig`, or `setup.cfg` — the project has no enforced code style tooling.
 - **Docker build is Anolis OS 23-based** (not `python:3.11-slim` — that's only in the old README_Docker.md). The Dockerfile installs `kpatch` and `kpatch-build` via `dnf`.
-- **Test needs full install.** `rank-bm25` is in `requirements.txt` but not `install_requires` in `setup.py` — tests may fail if only `pip install -e .` is run without also installing `requirements.txt`.
+- **`setup.py` used to miss `rank-bm25`.** As of commit `98a87828b` it's in both `install_requires` and `requirements.txt` — `pip install -e .` alone now installs everything.

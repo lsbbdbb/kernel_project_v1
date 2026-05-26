@@ -8,6 +8,7 @@ setup(
         "requests>=2.25.0",
         "pyyaml>=5.0",
         "openai>=1.0.0",
+        "rank-bm25>=0.2.2",
     ],
     entry_points={
         "console_scripts": [

@@ -306,7 +306,11 @@ def _action_run_build(cve_id: str, workdir: str, state_mgr: StateManager) -> Dic
     run_config = state_mgr.get_run_config()
     kernel_version = run_config.get("kernel_version", "6.6.102-5.2.an23.x86_64")
     source_dir = _target_source_dir(workdir, kernel_version)
-    vmlinux_path = os.path.join(source_dir, "vmlinux")
+
+    # Respect explicit vmlinux/kernel-devel paths from env vars,
+    # falling back to the canonical source-tree layout.
+    vmlinux_path = os.getenv("VMLINUX_PATH") or os.path.join(source_dir, "vmlinux")
+    kernel_devel_path = os.getenv("KERNEL_DEVEL_PATH")
 
     # Ensure kernel .config is fresh before building (fixes syncconfig errors)
     _ensure_kernel_config(source_dir)
@@ -318,7 +322,7 @@ def _action_run_build(cve_id: str, workdir: str, state_mgr: StateManager) -> Dic
 
     builder = KpatchBuilder(workdir, cve_id)
     result = builder.build(patch_path, source_dir, vmlinux_path,
-                           kernel_devel_path=None, attempt=attempt,
+                           kernel_devel_path=kernel_devel_path, attempt=attempt,
                            expected_kernel_version=actual_version)
 
     # Clean source tree after build to prevent pollution of subsequent runs
@@ -501,18 +505,17 @@ def process_cve(cve_id: str, workdir: str, state_mgr: StateManager, planner: Pla
         action = decision.get("action", "unknown")
 
         if action == "done":
-            # Ensure final status and report are generated for all exit paths
-            next_st = decision.get("next_state")
-            if next_st == "Failed":
-                state_mgr.set_final_status(cve_id, "failed")
-            elif next_st == "Skipped":
-                state_mgr.set_final_status(cve_id, "skipped")
-            elif next_st == "ManualRequired" or state_mgr.get_state(cve_id).get("status") == "manual_required":
-                state_mgr.set_final_status(cve_id, "manual_required")
-            elif not state_mgr.get_state(cve_id).get("status"):
-                state_mgr.set_final_status(cve_id, "failed")
-            state_mgr.transition_to(cve_id, "ReportWritten",
-                                    reason=decision.get("reason", "Finalized"))
+            # Set final status from planner decision (if not already set).
+            # _action_write_report handles transition-to-ReportWritten + report.
+            state = state_mgr.get_state(cve_id)
+            if not state.get("status"):
+                next_st = decision.get("next_state")
+                status_for_next = {
+                    "Failed": "failed",
+                    "Skipped": "skipped",
+                    "ManualRequired": "manual_required",
+                }
+                state_mgr.set_final_status(cve_id, status_for_next.get(next_st, "failed"))
             _action_write_report(cve_id, workdir, state_mgr, cve_ids)
             break
 
@@ -739,9 +742,64 @@ def _action_fix_environment(cve_id: str, workdir: str, state_mgr: StateManager) 
                         break
                 except Exception:
                     continue
+    elif reason_code == "git_unsafe_ownership" and os.path.isdir(source_dir):
+        # Fix dubious git ownership for mounted/bind kernel source
+        try:
+            proc = subprocess.run(
+                ["git", "config", "--global", "--add", "safe.directory", source_dir],
+                capture_output=True, text=True, timeout=15,
+            )
+            if proc.returncode == 0:
+                result["success"] = True
+                result["message"] = f"Added safe.directory {source_dir}"
+            else:
+                result["message"] = f"git config failed: {proc.stderr[:200]}"
+        except Exception as e:
+            result["message"] = str(e)
+
+    elif reason_code == "missing_vmlinux":
+        # Check if vmlinux exists elsewhere or provide build hint
+        vmlinux_env = os.getenv("VMLINUX_PATH")
+        if vmlinux_env and os.path.isfile(vmlinux_env):
+            result["success"] = True
+            result["message"] = f"VMLINUX_PATH env var points to {vmlinux_env}"
+        elif os.path.isdir(source_dir):
+            result["message"] = (
+                f"vmlinux not found at {source_dir}. "
+                f"Set VMLINUX_PATH env var or build it:\n"
+                f"  cd {source_dir} && make defconfig && make -j$(nproc) vmlinux modules_prepare"
+            )
+        else:
+            result["message"] = f"Source tree {source_dir} not found. Set KERNEL_SRC env var."
+
+    elif reason_code == "missing_build_tool" and os.path.exists("/.dockerenv"):
+        # Read the log to detect which command was missing
+        # (failure.json location doesn't capture the tool name)
+        log_path = os.path.join(workdir, cve_id, "logs",
+                                f"build_{state_mgr.get_state(cve_id).get('attempt', 1)}.log")
+        missing_cmd = "openssl"  # default
+        if os.path.exists(log_path):
+            with open(log_path) as _lf:
+                _log = _lf.read()
+            _m = re.search(r'(\w+):\s*command not found', _log)
+            if _m:
+                missing_cmd = _m.group(1)
+        try:
+            proc = subprocess.run(
+                ["dnf", "install", "-y", missing_cmd],
+                capture_output=True, text=True, timeout=60,
+            )
+            if proc.returncode == 0:
+                result["success"] = True
+                result["message"] = f"dnf install -y {missing_cmd} succeeded"
+            else:
+                result["message"] = f"dnf install -y {missing_cmd} failed: {proc.stderr[:200]}"
+        except Exception as e:
+            result["message"] = str(e)
+
     elif reason_code in (
-        "missing_vmlinux", "source_permission_denied", "git_unsafe_ownership",
-        "kernel_mismatch", "setlocalversion_incompatible",
+        "source_permission_denied", "kernel_mismatch",
+        "setlocalversion_incompatible",
     ):
         result["message"] = f"Environment issue {reason_code} requires manual intervention"
     else:
