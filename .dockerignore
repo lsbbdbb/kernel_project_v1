@@ -11,3 +11,6 @@ build/
 test_run/
 *.md
 kernel-src/
+acceptance_vm_*/
+run_*/
+run_acceptance_*/

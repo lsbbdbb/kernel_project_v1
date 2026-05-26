@@ -104,7 +104,7 @@ LABEL description="Kernel CVE Livepatch Agent - Anolis OS Build Environment"
 # Anolis OS 用 yum/dnf
 RUN dnf install -y --setopt=tsflags=nodocs \
     gcc gcc-c++ make git patch diffutils binutils \
-    elfutils-libelf-devel openssl-devel kmod \
+    elfutils-libelf-devel openssl openssl-devel kmod \
     python3 python3-pip \
     bc bison flex ncurses-devel \
     kernel-devel \
@@ -276,23 +276,13 @@ case "${1:-test}" in
 esac
 ```
 
-#### 0.5 syncconfig 绕过（环境兼容层）
+#### 0.5 syncconfig 与构建基线边界
 
 **问题**: kpatch-build 设置 `CC=/usr/local/libexec/kpatch/kpatch-cc gcc`（含空格），内核 Kconfig 预处理函数无法正确解析，导致 `scripts/kconfig/conf --syncconfig` 始终退出。
 
-**解决**: 在 `_ensure_kernel_config()` 中 touch `include/config/auto.conf` 和 `auto.conf.cmd` 使其比 `.config` 新。内核 Makefile 的依赖检查认为配置已最新，跳过 syncconfig。
+**安全约束**: 运行流程不得通过 touch 生成文件、执行 `olddefconfig`/`syncconfig` 或清理 Git 工作树来隐式改变已选择的内核基线。该类错误必须归类为环境修复需求，由操作者显式准备与目标 VM 匹配的 `.config`、`vmlinux`、release 与编译器后重新运行。
 
-```python
-# agent/__main__.py — _ensure_kernel_config 核心逻辑
-auto_conf = os.path.join(source_dir, "include/config/auto.conf")
-auto_conf_cmd = os.path.join(source_dir, "include/config/auto.conf.cmd")
-if os.path.isfile(auto_conf) and os.path.isfile(auto_conf_cmd):
-    for f in (auto_conf, auto_conf_cmd):
-        if os.path.getmtime(f) <= config_mtime:
-            os.utime(f, (min_new, min_new))
-```
-
-**验证**: kpatch-build build.log 显示 `LD vmlinux.o` 而非 syncconfig 错误。
+**验证**: 构建前核对 `make -s kernelrelease` 等于目标 VM release，且 kpatch 编译器校验启用；缺失工具、配置同步失败或编译器不匹配均停止验收并写入失败证据。
 
 ### Phase 0 验证
 

@@ -11,7 +11,8 @@ venv/
 kernel-src/
 acceptance_vm_20260525/
 # On-disk CVE workdirs — generated, not tracked
-run_2026*/
+run_*/
+run_acceptance_*/
 # kpatch build cache
 .kpatch/
 # IDE

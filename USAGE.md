@@ -86,6 +86,9 @@ python -m agent [--cves FILE | --cve CVE_ID] [options]
 | `DEEPSEEK_API_KEY` | DeepSeek API key（LLM 模式必需） |
 | `OPENAI_API_KEY` | OpenAI API key |
 | `KERNEL_SRC` | 内核源码路径（手动指定，覆盖自动检测） |
+| `VMLINUX_PATH` | 目标内核 debuginfo 中的只读 `vmlinux` 路径（运行加载验收时应显式提供） |
+| `KERNEL_DEVEL_PATH` | 与目标内核精确版本匹配的 `kernel-devel` 路径（可选，传递给 `kpatch-build -d`） |
+| `KPATCH_BUILD_BIN` | 指定已审核的 `kpatch-build` 可执行文件路径（工具链兼容实验用） |
 | `LANG / LC_ALL` | 设为 `C` 可避免 locale 相关 make 错误 |
 
 ### 运行模式
