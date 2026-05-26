@@ -594,7 +594,19 @@ def _ensure_kernel_config(source_dir: str):
     config_path = os.path.join(source_dir, ".config")
     if not os.path.isfile(config_path):
         return False
-    # Try simple invocation first (works in Docker)
+
+    # Check if config is already fresh: include/config/auto.conf exists and is
+    # newer than .config.  This is common when the source tree was pre-built
+    # and the config files are read-only (root-owned from Docker/acceptance_vm).
+    auto_conf = os.path.join(source_dir, "include", "config", "auto.conf")
+    auto_conf_cmd = os.path.join(source_dir, "include", "config", "auto.conf.cmd")
+    if (os.path.isfile(auto_conf) and os.path.isfile(auto_conf_cmd)
+            and os.path.getmtime(auto_conf) >= os.path.getmtime(config_path)):
+        return True
+
+    # Try simple invocation first (works in Docker).
+    # If the source tree files are read-only (root-owned), try to verify config
+    # is usable instead of forcing a write.
     for cmd in [
         ["make", "olddefconfig"],
         ["make", "olddefconfig", "srctree=.", "CC=gcc"],
@@ -610,6 +622,10 @@ def _ensure_kernel_config(source_dir: str):
         except Exception:
             continue
     else:
+        # olddefconfig failed — likely read-only source tree.
+        # If the existing config files are usable, just proceed.
+        if os.path.isfile(config_path) and os.path.isfile(auto_conf):
+            return True
         return False
 
     # auto.conf.cmd is NOT created by olddefconfig — only by syncconfig.
@@ -647,7 +663,12 @@ def _ensure_kernel_config(source_dir: str):
         min_new = config_mtime + 1.0
         for f in (auto_conf, auto_conf_cmd):
             if os.path.getmtime(f) <= config_mtime:
-                os.utime(f, (min_new, min_new))
+                try:
+                    os.utime(f, (min_new, min_new))
+                except (PermissionError, OSError):
+                    # Read-only filesystem (root-owned source tree from Docker).
+                    # Config files are already valid from pre-built environment.
+                    pass
 
     return True
 

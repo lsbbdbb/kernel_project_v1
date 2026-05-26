@@ -386,3 +386,51 @@ class TestWebApi:
             html = resp.read().decode()
             assert "loadTraceForCve" in html
             assert "populateTraceSelector" in html
+
+    # ------------------------------------------------------------------
+    # Expandable CVE stages tests
+    # ------------------------------------------------------------------
+
+    def test_cve_card_has_expand_stages(self):
+        """CVE cards have expandable stage sections."""
+        data = _get("/api/status")
+        if not data.get("cves"):
+            return
+        # Check the HTML has the expand/collapse mechanism
+        url = f"{BASE_URL}/"
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            html = resp.read().decode()
+            assert "toggleCveStages" in html
+            assert "cve-stages" in html
+            assert "流水线阶段" in html
+
+    def test_permission_error_fix(self):
+        """_ensure_kernel_config handles read-only files gracefully."""
+        import tempfile, os
+        # Simulate read-only config files
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(tmp, "source")
+            os.makedirs(os.path.join(src, "include", "config"))
+            config = os.path.join(src, ".config")
+            with open(config, "w") as f:
+                f.write("CONFIG_FOO=y\n")
+            auto_conf = os.path.join(src, "include", "config", "auto.conf")
+            with open(auto_conf, "w") as f:
+                f.write("CONFIG_FOO=y\n")
+            auto_conf_cmd = os.path.join(src, "include", "config", "auto.conf.cmd")
+            with open(auto_conf_cmd, "w") as f:
+                f.write("dummy\n")
+
+            # Make files read-only (owned by root would be even stricter,
+            # but chmod 444 simulates the permission restriction)
+            os.chmod(config, 0o444)
+            os.chmod(auto_conf, 0o444)
+            os.chmod(auto_conf_cmd, 0o444)
+
+            # Import and test _ensure_kernel_config
+            from agent.__main__ import _ensure_kernel_config
+            # This should not raise PermissionError
+            result = _ensure_kernel_config(src)
+            # Should return True since files exist and are non-empty
+            assert result == True

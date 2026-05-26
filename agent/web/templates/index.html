@@ -148,6 +148,29 @@ header {
 .badge-skipped { background: #1c1917; color: var(--text-dim); }
 .cve-card .cve-detail { margin-top: 8px; font-size: 12px; color: var(--text-dim); }
 .cve-card .cve-detail span { margin-right: 12px; }
+.cve-card .cve-expand {
+  margin-top: 8px; font-size: 11px; color: var(--accent); cursor: pointer;
+  user-select: none;
+}
+.cve-card .cve-expand:hover { text-decoration: underline; }
+.cve-card .cve-stages { display: none; margin-top: 6px; border-top: 1px solid var(--border); padding-top: 6px; max-height: 300px; overflow-y: auto; }
+.cve-card.open .cve-stages { display: block; }
+.cve-stage {
+  display: flex; align-items: center; gap: 6px; padding: 3px 0;
+  font-size: 11px; border-bottom: 1px solid rgba(71,85,105,.3);
+}
+.cve-stage:last-child { border-bottom: none; }
+.cve-stage .stage-dot {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+}
+.stage-dot.ok { background: var(--green); }
+.stage-dot.fail { background: var(--red); }
+.stage-dot.skip { background: var(--text-dim); }
+.stage-dot.active { background: var(--accent); }
+.cve-stage .stage-from { color: var(--text-dim); font-size: 10px; min-width: 70px; }
+.cve-stage .stage-arrow { color: var(--text-dim); font-size: 10px; }
+.cve-stage .stage-to { font-weight: 500; font-size: 11px; }
+.cve-stage .stage-reason { color: var(--text-dim); font-size: 10px; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100px; }
 
 /* ===== Detail Panel (slide-out) ===== */
 .detail-overlay {
@@ -534,7 +557,33 @@ function renderCveCards(cves) {
     else if (status === 'failed') badgeClass = 'badge-failed';
     else if (status === 'manual_required') badgeClass = 'badge-manual';
     else if (status === 'skipped') badgeClass = 'badge-skipped';
-    else if (cves.some(x => x.cve_id === c.cve_id && x.state)) badgeClass = 'badge-running';
+    else badgeClass = 'badge-running';
+
+    // Build stage list from events
+    let stagesHtml = '';
+    const events = c.events || [];
+    if (events.length > 0) {
+      stagesHtml = '<div class="cve-stages">';
+      events.forEach((ev, i) => {
+        const dotClass = ev.from === 'PatchApplied' && ev.to === 'ReportWritten' ? 'fail'
+                       : ev.to === 'ReportWritten' ? 'ok'
+                       : ev.from === 'BuildFailed' ? 'fail'
+                       : ev.to === 'Verified' ? 'ok'
+                       : 'active';
+        const reason = (ev.reason || '').slice(0, 50);
+        stagesHtml += `<div class="cve-stage">
+          <span class="stage-dot ${dotClass}"></span>
+          <span class="stage-from">${ev.from}</span>
+          <span class="stage-arrow">→</span>
+          <span class="stage-to">${ev.to}</span>
+          <span class="stage-reason" title="${ev.reason || ''}">${reason}</span>
+        </div>`;
+      });
+      stagesHtml += '</div>';
+    }
+
+    const errorMsg = c.error ? c.error.slice(0, 80) : '';
+    const isOpen = state === 'ReportWritten' && status === 'failed';
 
     card.innerHTML = `
       <div class="cve-header">
@@ -544,12 +593,28 @@ function renderCveCards(cves) {
       <div class="cve-detail">
         <span>尝试: ${c.attempt}/${c.max_attempts}</span>
         <span>${c.has_artifact ? '✅ 有 .ko' : ''}</span>
-        <span>${c.error ? '⚠️ ' + c.error.slice(0, 60) : ''}</span>
+        <span>${errorMsg ? '⚠️ ' + errorMsg : ''}</span>
       </div>
+      ${stagesHtml ? '<div class="cve-expand" onclick="event.stopPropagation();toggleCveStages(this)">📋 展开流水线阶段 (${events.length})</div>' : ''}
+      ${stagesHtml}
     `;
     card.onclick = () => openDetail(c.cve_id);
+    // Auto-open for failed CVEs
+    if (isOpen && stagesHtml) {
+      card.classList.add('open');
+      const expander = card.querySelector('.cve-expand');
+      if (expander) expander.textContent = '📋 收起流水线阶段';
+    }
     grid.appendChild(card);
   });
+}
+
+function toggleCveStages(el) {
+  const card = el.closest('.cve-card');
+  card.classList.toggle('open');
+  el.textContent = card.classList.contains('open')
+    ? '📋 收起流水线阶段'
+    : '📋 展开流水线阶段';
 }
 
 // ===== Stats =====
