@@ -35,8 +35,7 @@ services:
       - .:/app:z
       - /home/lee/kernel-livepatch-agent/acceptance_vm_20260525/source_tree/linux-6.6.102-5.2.an23:/kernel-src/linux-6.6.102-5.2.an23.x86_64:z
       - agent-output:/tmp/test_workspace
-      - ${HOME}/.ssh:/root/.ssh:ro
-      - ${HOME}/.ssh/known_hosts:/root/.ssh/known_hosts:ro
+      - ${HOME}/.ssh:/root/.ssh:ro,z
     working_dir: /app
     environment:
       - KERNEL_SRC=/kernel-src/linux-6.6.102-5.2.an23.x86_64
