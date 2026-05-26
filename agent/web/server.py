@@ -359,8 +359,13 @@ def api_check():
     candidates = []
     if env_src:
         candidates.append(("KERNEL_SRC env", env_src))
-    candidates.append(("默认路径", f"kernel-src/linux-{kernel_version}"))
-    candidates.append(("本地路径", f"/kernel-src/linux-{kernel_version}"))
+    candidates.append(("kernel-src/", f"kernel-src/linux-{kernel_version}"))
+    candidates.append(("容器路径", f"/kernel-src/linux-{kernel_version}"))
+    # acceptance_vm source tree (host-side fallback)
+    version_noarch = kernel_version.replace(".x86_64", "")
+    for d in sorted(os.listdir(".")):
+        if d.startswith("acceptance_vm_") or d.startswith("build_"):
+            candidates.append((d, f"{d}/source_tree/linux-{version_noarch}"))
 
     src_found = None
     for label, path in candidates:
