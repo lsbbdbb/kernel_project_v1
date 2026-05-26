@@ -195,6 +195,52 @@ header {
 .env-item .env-key { color: var(--text-dim); font-size: 10px; text-transform: uppercase; }
 .env-item .env-val { margin-top: 2px; word-break: break-all; }
 
+/* ===== Trace Timeline ===== */
+.trace-timeline { position: relative; padding-left: 28px; }
+.trace-timeline::before {
+  content: ''; position: absolute; left: 10px; top: 4px; bottom: 4px;
+  width: 2px; background: var(--border);
+}
+.trace-stage {
+  position: relative; padding: 8px 12px; margin-bottom: 2px;
+  border-radius: 6px; background: var(--surface); border: 1px solid var(--border);
+  font-size: 12px; cursor: pointer; transition: all .15s;
+}
+.trace-stage:hover { border-color: var(--accent); }
+.trace-stage::before {
+  content: ''; position: absolute; left: -22px; top: 12px;
+  width: 10px; height: 10px; border-radius: 50%; background: var(--surface2);
+  border: 2px solid var(--border);
+}
+.trace-stage.transition::before { background: var(--accent); border-color: var(--accent); }
+.trace-stage.classify::before { background: var(--yellow); border-color: var(--yellow); }
+.trace-stage.rewrite::before { background: var(--purple); border-color: var(--purple); }
+.trace-stage.build_failure::before { background: var(--red); border-color: var(--red); }
+.trace-stage .ts-header { display: flex; justify-content: space-between; align-items: center; }
+.trace-stage .ts-label { font-weight: 600; font-size: 12px; }
+.trace-stage .ts-badge { font-size: 10px; padding: 1px 6px; border-radius: 3px; }
+.ts-badge.rewrite { background: #3b0764; color: var(--purple); }
+.ts-badge.classify { background: #1c1917; color: var(--yellow); }
+.ts-badge.build_failure { background: #450a0a; color: var(--red); }
+.ts-badge.transition { background: #0c4a6e; color: var(--accent); }
+.trace-stage .ts-reason { color: var(--text-dim); font-size: 11px; margin-top: 2px; }
+.trace-stage .ts-duration { color: var(--text-dim); font-size: 10px; }
+.trace-stage .ts-detail { display: none; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); font-size: 11px; }
+.trace-stage.open .ts-detail { display: block; }
+.trace-stage .ts-detail pre { background: #0f172a; border-radius: 4px; padding: 6px; font-size: 10px; max-height: 150px; overflow: auto; }
+
+/* ===== RAG Cards ===== */
+.rag-card {
+  background: #1e1b4b; border: 1px solid #4c1d95; border-radius: 6px;
+  padding: 8px 10px; margin: 4px 0; font-size: 11px;
+}
+.rag-card .rag-query { color: #a78bfa; font-weight: 500; }
+.rag-card .rag-result { color: var(--text-dim); margin-top: 2px; }
+.rag-card .rag-chunk { padding: 4px 0; border-bottom: 1px solid #2e1065; }
+.rag-card .rag-chunk:last-child { border-bottom: none; }
+.rag-card .rag-chunk-id { color: #c4b5fd; font-size: 10px; }
+.rag-card .rag-chunk-snippet { color: var(--text-dim); font-size: 10px; }
+
 /* ===== Principle / Architecture ===== */
 .principle-section { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 12px; }
 .principle-section h3 { font-size: 15px; margin-bottom: 8px; color: var(--accent); }
@@ -263,6 +309,7 @@ header {
   <button class="tab" data-tab="pipeline">🔀 流程图</button>
   <button class="tab" data-tab="principles">📖 原理说明</button>
   <button class="tab" data-tab="env">⚙️ 环境</button>
+  <button class="tab" data-tab="trace">🔗 链路</button>
 </div>
 
 <!-- ===== Tab: Dashboard ===== -->
@@ -356,6 +403,15 @@ header {
   <div class="env-grid" id="envGrid"></div>
 </div>
 
+<!-- ===== Tab: Trace ===== -->
+<div class="tab-content" id="tab-trace">
+  <div style="margin-bottom:12px">
+    <label style="font-size:12px;color:var(--text-dim);margin-right:8px">选择 CVE：</label>
+    <select id="traceCveSelect" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:4px 8px;color:var(--text);font-size:13px;min-width:180px" onchange="loadTrace()"></select>
+  </div>
+  <div id="traceContent" style="color:var(--text-dim);font-size:13px;padding:20px 0;text-align:center">选择 CVE 查看工程链路</div>
+</div>
+
 </div> <!-- /container -->
 
 <!-- ===== Detail Panel ===== -->
@@ -381,6 +437,16 @@ document.querySelectorAll('.tab').forEach(tab => {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     tab.classList.add('active');
     document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    // Auto-load trace when switching to trace tab
+    if (tab.dataset.tab === 'trace') {
+      const sel = document.getElementById('traceCveSelect');
+      if (sel && sel.options.length > 0 && !sel.value) {
+        sel.value = sel.options[0].value;
+        loadTrace();
+      } else if (sel && sel.value) {
+        loadTrace();
+      }
+    }
   });
 });
 
@@ -800,6 +866,109 @@ async function runHeaderCheck() {
   }
 }
 
+// ===== Trace / Pipeline Chain =====
+function populateTraceSelector(cves) {
+  const sel = document.getElementById('traceCveSelect');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '';
+  (cves || []).forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.cve_id;
+    opt.textContent = c.cve_id + ' (' + (c.state || '?') + ')';
+    sel.appendChild(opt);
+  });
+  if (current && [...sel.options].some(o => o.value === current)) {
+    sel.value = current;
+  }
+}
+
+async function loadTrace() {
+  const sel = document.getElementById('traceCveSelect');
+  if (!sel || !sel.value) return;
+  await loadTraceForCve(sel.value);
+}
+
+async function loadTraceForCve(cveId) {
+  const cont = document.getElementById('traceContent');
+  cont.innerHTML = '<p style="color:var(--text-dim);font-size:13px;padding:20px">⏳ 加载链路…</p>';
+
+  try {
+    const respTrace = await fetch(`/api/cve/${cveId}/trace`);
+    const trace = await respTrace.json();
+
+    const respCve = await fetch(`/api/cve/${cveId}`);
+    const detail = await respCve.json();
+
+    let html = '<div style="margin-bottom:12px;display:flex;gap:16px;flex-wrap:wrap;font-size:12px">';
+    if (trace.failure && trace.failure.reason_code) {
+      const f = trace.failure;
+      html += `<span>❌ 失败原因: <strong>${f.reason_code}</strong> (${f.category})</span>`;
+      html += `<span>可重试: ${f.retryable ? '✅' : '❌'}</span>`;
+      html += `<span>严重程度: ${f.severity}</span>`;
+    }
+    html += `<span>流水线阶段: <strong>${trace.stages}</strong></span>`;
+    html += `<span>RAG 查询: <strong>${trace.rag_query_count}</strong></span>`;
+    html += `<span>重试次数: <strong>${trace.attempts ? trace.attempts.length : 0}</strong></span>`;
+    html += '</div>';
+
+    // Timeline
+    html += '<div class="trace-timeline">';
+    (trace.timeline || []).forEach(stage => {
+      const cls = stage.type || 'transition';
+      const badge = stage.rag_involved ? '🧠 RAG' : stage.type;
+      html += `<div class="trace-stage ${cls}" onclick="this.classList.toggle('open')">
+        <div class="ts-header">
+          <span class="ts-label">${stage.from} → ${stage.to}</span>
+          <span>
+            <span class="ts-badge ${cls}">${badge}</span>
+            ${stage.duration_s ? `<span class="ts-duration">${stage.duration_s}s</span>` : ''}
+          </span>
+        </div>
+        <div class="ts-reason">${stage.reason || ''}</div>
+        <div class="ts-detail">`;
+      if (stage.rag_involved) {
+        html += '<div style="color:var(--purple);font-weight:500;margin-bottom:4px">🧠 此阶段涉及 RAG 知识检索</div>';
+      }
+      html += `<div style="color:var(--text-dim)">时间: ${stage.timestamp || '-'}</div>`;
+      html += '</div></div>';
+    });
+    html += '</div>';
+
+    // RAG traces
+    if (trace.rag_traces && trace.rag_traces.length > 0) {
+      html += '<h3 style="font-size:14px;margin:12px 0 8px">🧠 RAG 知识检索记录</h3>';
+      trace.rag_traces.forEach((rt, ri) => {
+        html += `<div class="rag-card">
+          <div class="rag-query">#${ri + 1} 查询: "${rt.query}" (${rt.source})</div>
+          <div style="color:var(--text-dim);font-size:10px">${rt.timestamp}</div>
+          <div style="margin-top:4px">`;
+        (rt.results || []).forEach(chunk => {
+          const tags = (chunk.tags || []).join(', ');
+          html += `<div class="rag-chunk">
+            <div class="rag-chunk-id">${chunk.type}: ${chunk.title || chunk.chunk_id} ${tags ? ' [' + tags + ']' : ''}</div>
+            <div class="rag-chunk-snippet">${chunk.snippet || ''}</div>
+          </div>`;
+        });
+        html += '</div></div>';
+      });
+    }
+
+    // Patches
+    if (detail.patches && Object.keys(detail.patches).length > 0) {
+      html += '<h3 style="font-size:14px;margin:12px 0 8px">📄 补丁文件</h3>';
+      for (const [name, content] of Object.entries(detail.patches)) {
+        html += `<div style="margin-bottom:6px"><strong style="font-size:12px">${name}</strong></div>`;
+        html += `<pre>${escapeHtml(content.slice(0, 1500))}</pre>`;
+      }
+    }
+
+    cont.innerHTML = html;
+  } catch (e) {
+    cont.innerHTML = `<p style="color:var(--red);font-size:13px">加载失败: ${e.message}</p>`;
+  }
+}
+
 // ===== SSE Events =====
 function connectSSE() {
   const evtSource = new EventSource('/api/events');
@@ -824,6 +993,7 @@ function connectSSE() {
 function updateUI(data) {
   updateHeader(data);
   renderStats(data);
+  populateTraceSelector(data.cves || []);
 
   // Build active state map for pipeline
   const stateMap = {};

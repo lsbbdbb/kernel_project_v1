@@ -240,6 +240,120 @@ def api_cve_detail(cve_id):
     })
 
 
+@app.route("/api/cve/<cve_id>/trace")
+def api_cve_trace(cve_id):
+    """Return the engineering pipeline trace for a CVE.
+
+    Synthesizes events timeline + failure classification + rewrite
+    attempts + RAG queries into a structured chain.
+    """
+    global _workdir
+    if _workdir is None:
+        _workdir = _find_latest_workdir()
+    if _workdir is None:
+        return jsonify({"error": "No workdir"}), 404
+
+    cve_dir = os.path.join(_workdir, cve_id)
+    if not os.path.isdir(cve_dir):
+        return jsonify({"error": f"CVE {cve_id} not found"}), 404
+
+    # 1. Events → pipeline stages
+    events_path = os.path.join(cve_dir, "events.json")
+    stages = []
+    if os.path.exists(events_path):
+        try:
+            with open(events_path) as f:
+                events = json.load(f)
+            for idx, ev in enumerate(events):
+                stage = {
+                    "order": idx + 1,
+                    "from": ev.get("from", ""),
+                    "to": ev.get("to", ""),
+                    "reason": ev.get("reason", ""),
+                    "timestamp": ev.get("timestamp", ""),
+                    "type": "transition",
+                }
+                # Annotate RAG-involved stages
+                if "RewritePrepared" in (ev.get("from", ""), ev.get("to", "")):
+                    stage["type"] = "rewrite"
+                    stage["rag_involved"] = True
+                if "FailureClassified" in (ev.get("from", ""), ev.get("to", "")):
+                    stage["type"] = "classify"
+                if "BuildFailed" in (ev.get("from", ""), ev.get("to", "")):
+                    stage["type"] = "build_failure"
+                stages.append(stage)
+        except Exception:
+            pass
+
+    # 2. Failure classification
+    failure_path = os.path.join(cve_dir, "failure.json")
+    failure = {}
+    if os.path.exists(failure_path):
+        try:
+            with open(failure_path) as f:
+                failure = json.load(f)
+        except Exception:
+            pass
+
+    # 3. RAG traces
+    rag_path = os.path.join(cve_dir, "rag_trace.json")
+    rag_traces = []
+    if os.path.exists(rag_path):
+        try:
+            with open(rag_path) as f:
+                rag_traces = json.load(f)
+        except Exception:
+            pass
+
+    # 4. Attempt records
+    attempts = []
+    for i in range(1, 20):
+        ap = os.path.join(cve_dir, f"attempt_{i}.json")
+        if os.path.exists(ap):
+            try:
+                with open(ap) as f:
+                    att = json.load(f)
+                attempts.append({
+                    "attempt_index": att.get("attempt_index", i),
+                    "strategy": att.get("rewrite_plan", {}).get("strategy",
+                                  att.get("strategy", "")),
+                    "source": att.get("rewrite_source", att.get("source", "")),
+                    "success": att.get("result", {}).get("success", False),
+                    "failure_code": att.get("failure", {}).get("reason_code", ""),
+                })
+            except Exception:
+                pass
+
+    # 5. Compute durations between stages
+    timeline = []
+    for i, stage in enumerate(stages):
+        entry = dict(stage)
+        if i > 0 and stages[i - 1].get("timestamp") and stage.get("timestamp"):
+            try:
+                t1 = datetime.fromisoformat(stages[i - 1]["timestamp"])
+                t2 = datetime.fromisoformat(stage["timestamp"])
+                entry["duration_s"] = round((t2 - t1).total_seconds(), 1)
+            except Exception:
+                pass
+        timeline.append(entry)
+
+    return jsonify({
+        "cve_id": cve_id,
+        "timeline": timeline,
+        "stages": len(timeline),
+        "failure": {
+            "reason_code": failure.get("reason_code", ""),
+            "category": failure.get("category", ""),
+            "severity": failure.get("severity", ""),
+            "retryable": failure.get("retryable", False),
+            "summary": failure.get("summary", ""),
+        } if failure else None,
+        "rag_traces": rag_traces,
+        "rag_query_count": len(rag_traces),
+        "attempts": attempts,
+    })
+
+
 @app.route("/api/logs/<cve_id>/<int:attempt>")
 def api_logs(cve_id, attempt):
     global _workdir
