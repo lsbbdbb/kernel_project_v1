@@ -672,21 +672,40 @@ def api_events():
 # ---------------------------------------------------------------------------
 
 def _run_agent_worker(cves_path: str, workdir: str, kernel_version: str,
-                       max_attempts: int, no_llm: bool):
-    """Run the agent in a background thread."""
+                       max_attempts: int, no_llm: bool, use_docker: bool = False):
+    """Run the agent in a background thread (host or Docker)."""
     global _run_process
-    cmd = [
-        sys.executable, "-m", "agent",
-        "--cves", cves_path,
-        "--workdir", workdir,
-        "--kernel-version", kernel_version,
-        "--max-attempts", str(max_attempts),
-    ]
-    if no_llm:
-        cmd.append("--no-llm")
 
-    # Pass through LLM env vars
-    env = os.environ.copy()
+    if use_docker:
+        # Docker mode — use the project's compose env
+        workdir_name = os.path.basename(workdir)
+        extra_args = ["--no-llm"] if no_llm else []
+        cmd = [
+            "docker", "compose", "run", "--rm",
+            "-e", f"WORKDIR=/app/{workdir_name}",
+            "-e", "KERNEL_SRC=/kernel-src/linux-6.6.102-5.2.an23.x86_64",
+            "-e", f"DEEPSEEK_API_KEY={os.environ.get('DEEPSEEK_API_KEY', '')}",
+            "agent",
+            "sh", "-c",
+            f"python3 -m agent --cves /app/{cves_path} "
+            f"--workdir /app/{workdir_name} "
+            f"--kernel-version {kernel_version} "
+            f"--max-attempts {max_attempts} "
+            f"{' '.join(extra_args)}",
+        ]
+        env = {}
+    else:
+        # Host mode — run python directly
+        cmd = [
+            sys.executable, "-m", "agent",
+            "--cves", cves_path,
+            "--workdir", workdir,
+            "--kernel-version", kernel_version,
+            "--max-attempts", str(max_attempts),
+        ]
+        if no_llm:
+            cmd.append("--no-llm")
+        env = os.environ.copy()
 
     try:
         _run_process = subprocess.Popen(
@@ -716,20 +735,25 @@ def api_run():
     max_attempts = data.get("max_attempts", 5)
     no_llm = data.get("no_llm", False)
 
+    # Decide: Docker available? Use it (avoids compiler_mismatch on host)
+    use_docker = _docker_available() and not os.path.exists("/.dockerenv")
+
     # Create timestamped workdir
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    workdir = os.path.join(os.getcwd(), f"run_{timestamp}")
+    prefix = "docker_" if use_docker else "run_"
+    workdir = os.path.join(os.getcwd(), f"{prefix}{timestamp}")
     os.makedirs(workdir, exist_ok=True)
     _workdir = workdir
 
     _run_thread = threading.Thread(
         target=_run_agent_worker,
-        args=(cves_path, workdir, kernel_version, max_attempts, no_llm),
+        args=(cves_path, workdir, kernel_version, max_attempts, no_llm, use_docker),
         daemon=True,
     )
     _run_thread.start()
 
-    return jsonify({"status": "started", "workdir": workdir})
+    mode = "Docker" if use_docker else "host"
+    return jsonify({"status": "started", "workdir": workdir, "mode": mode})
 
 
 @app.route("/api/stop", methods=["POST"])
