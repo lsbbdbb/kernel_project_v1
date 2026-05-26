@@ -108,6 +108,15 @@ header {
 }
 .pipeline-node .node-label { font-size: 9px; color: var(--text-dim); text-align: center; }
 
+/* ===== Check Results ===== */
+.check-bar {
+  display: flex; align-items: center; gap: 12px; padding: 8px 14px;
+  border-radius: 6px; font-size: 12px; margin-bottom: 10px; cursor: pointer;
+}
+.check-bar.all-pass { background: #064e3b; border: 1px solid var(--green); color: var(--green); }
+.check-bar.has-errors { background: #450a0a; border: 1px solid var(--red); color: var(--red); }
+.check-bar.has-warnings { background: #1c1917; border: 1px solid var(--yellow); color: var(--yellow); }
+
 /* ===== Stats Cards ===== */
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 16px; }
 .stat-card {
@@ -241,7 +250,9 @@ header {
     <span class="btn" onclick="scanWorkdir()">🔄 扫描</span>
     <span class="btn btn-primary" onclick="showRunForm()">▶ 启动</span>
     <span class="btn btn-danger" onclick="stopAgent()">⏹ 停止</span>
+    <span class="btn" onclick="runHeaderCheck()">🔍 环境检测</span>
   </div>
+  <div id="headerCheckBar" style="width:100%;margin-top:4px;display:none"></div>
 </header>
 
 <div class="container">
@@ -665,10 +676,50 @@ function showRunForm() {
         <div><label>内核版本</label><input type="text" id="runKernel" value="6.6.102-5.2.an23.x86_64" style="width:220px"></div>
         <div><label>最大尝试</label><input type="number" id="runAttempts" value="5" min="1" max="20" style="width:80px"></div>
         <div class="checkbox-row"><input type="checkbox" id="runNoLlm"><label for="runNoLlm">纯规则模式 (--no-llm)</label></div>
-        <div><button class="btn btn-primary" onclick="startAgent()">▶ 启动</button></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary" onclick="runPreflightCheck()">🔍 前置检测</button>
+          <button class="btn" onclick="startAgent()" id="startBtn">▶ 启动</button>
+        </div>
       </div>
+      <div id="checkResults" style="margin-top:10px"></div>
     </div>
   `;
+}
+
+async function runPreflightCheck() {
+  const box = document.getElementById('checkResults');
+  box.innerHTML = '<p style="color:var(--text-dim);font-size:13px">⏳ 检测中…</p>';
+
+  try {
+    const resp = await fetch('/api/check');
+    const data = await resp.json();
+
+    let html = `<div style="margin-top:6px;font-size:12px">
+      <div style="display:flex;gap:12px;margin-bottom:8px;flex-wrap:wrap">
+        <span style="color:${data.ok ? 'var(--green)' : 'var(--red)'};font-weight:600">
+          ${data.ok ? '✅ 全部通过' : '❌ 存在未通过项'}
+        </span>
+        <span>通过 ${data.summary.passed}/${data.summary.total}</span>
+        <span style="color:var(--red)">错误 ${data.summary.errors}</span>
+        <span style="color:var(--yellow)">警告 ${data.summary.warnings}</span>
+      </div>`;
+
+    data.checks.forEach(c => {
+      const icon = c.ok ? '✅' : (c.severity === 'warning' ? '⚠️' : '❌');
+      const color = c.ok ? 'var(--green)' : (c.severity === 'warning' ? 'var(--yellow)' : 'var(--red)');
+      html += `<div style="display:flex;align-items:baseline;gap:6px;padding:4px 0;border-bottom:1px solid var(--border)">
+        <span>${icon}</span>
+        <span style="font-weight:500;min-width:100px">${c.name}</span>
+        <span style="color:${color};flex:1">${c.value}</span>
+        ${c.hint ? `<span style="color:var(--text-dim);font-size:11px">💡 ${c.hint}</span>` : ''}
+      </div>`;
+    });
+    html += '</div>';
+
+    box.innerHTML = html;
+  } catch (e) {
+    box.innerHTML = `<p style="color:var(--red);font-size:13px">检测失败: ${e.message}</p>`;
+  }
 }
 
 async function startAgent() {
@@ -718,6 +769,34 @@ async function scanWorkdir() {
     }
   } catch (e) {
     showToast('扫描失败: ' + e.message, 'error');
+  }
+}
+
+async function runHeaderCheck() {
+  const bar = document.getElementById('headerCheckBar');
+  bar.style.display = 'block';
+  bar.innerHTML = '<span style="font-size:12px;color:var(--text-dim)">⏳ 环境检测中…</span>';
+  try {
+    const resp = await fetch('/api/check');
+    const data = await resp.json();
+
+    const cls = data.ok ? 'all-pass' : (data.summary.warnings > 0 ? 'has-warnings' : 'has-errors');
+    const icon = data.ok ? '✅' : (data.summary.warnings > 0 ? '⚠️' : '❌');
+    bar.className = 'check-bar ' + cls;
+    bar.innerHTML = `
+      <span style="font-weight:600">${icon} 环境检测</span>
+      <span>通过 ${data.summary.passed}/${data.summary.total}</span>
+      ${data.summary.errors > 0 ? `<span style="color:var(--red)">❌ ${data.summary.errors} 个错误</span>` : ''}
+      ${data.summary.warnings > 0 ? `<span style="color:var(--yellow)">⚠️ ${data.summary.warnings} 个警告</span>` : ''}
+      <span style="font-size:11px;color:var(--text-dim)">点击查看详情</span>
+    `;
+    bar.onclick = () => {
+      showRunForm();
+      runPreflightCheck();
+      document.querySelector('[data-tab=dashboard]').click();
+    };
+  } catch (e) {
+    bar.innerHTML = `<span style="font-size:12px;color:var(--red)">检测失败: ${e.message}</span>`;
   }
 }
 

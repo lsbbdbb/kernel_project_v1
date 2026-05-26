@@ -25,34 +25,37 @@ def _get(path: str, expect_status: int = 200) -> dict:
         return json.loads(e.read().decode())
 
 
-def _sse_connect(path: str, timeout: float = 5.0) -> list:
+def _sse_connect(path: str, timeout: float = 6.0) -> list:
     """Connect to an SSE stream and collect events until timeout."""
-    import socket
     events = []
     url = f"{BASE_URL}{path}"
+    import socket
     try:
         req = urllib.request.Request(url)
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout + 2) as resp:
             assert resp.status == 200
             assert resp.headers.get("Content-Type", "").startswith("text/event-stream")
             start = time.time()
-            buf = b""
+            buf = ""
             while time.time() - start < timeout:
-                chunk = resp.read1(4096)
+                try:
+                    chunk = resp.read(4096).decode()
+                except socket.timeout:
+                    break
                 if not chunk:
                     break
                 buf += chunk
                 # Parse SSE lines
-                for line in buf.decode().split("\n"):
+                while "\n" in buf:
+                    line, buf = buf.split("\n", 1)
                     if line.startswith("data: "):
                         try:
                             events.append(json.loads(line[6:]))
                         except json.JSONDecodeError:
                             pass
-                buf = b""
-                if len(events) >= 3:
+                if len(events) >= 2:
                     break
-    except (socket.timeout, urllib.error.URLError):
+    except (socket.timeout, urllib.error.URLError, OSError):
         pass
     return events
 
@@ -257,3 +260,75 @@ class TestWebApi:
             _get(path)
             elapsed = time.time() - start
             assert elapsed < 5.0, f"{path} took {elapsed:.1f}s"
+
+    # ------------------------------------------------------------------
+    # Pre-flight check tests
+    # ------------------------------------------------------------------
+
+    def test_check_endpoint_returns_summary(self):
+        """GET /api/check returns summary with pass/fail counts."""
+        data = _get("/api/check")
+        assert "ok" in data
+        assert "summary" in data
+        assert "checks" in data
+        assert data["summary"]["total"] == len(data["checks"])
+        assert data["summary"]["total"] >= 5
+        assert data["summary"]["passed"] >= 0
+        assert data["summary"]["errors"] >= 0
+
+    def test_check_each_item_has_fields(self):
+        """Each check item has name, ok, value, hint, severity."""
+        data = _get("/api/check")
+        for c in data["checks"]:
+            assert "name" in c
+            assert "ok" in c
+            assert "value" in c
+            assert "hint" in c
+            assert "severity" in c
+            assert c["severity"] in ("ok", "info", "warning", "error")
+
+    def test_check_kpatch_build(self):
+        """kpatch-build check reflects actual availability."""
+        data = _get("/api/check")
+        kpatch = [c for c in data["checks"] if "kpatch" in c["name"].lower()]
+        assert len(kpatch) >= 1
+        # kpatch-build is installed on this server
+        assert kpatch[0]["ok"] == True
+        assert "0.9.11" in kpatch[0]["value"]
+
+    def test_check_cve_file(self):
+        """CVE list file check reflects sample_cves.txt."""
+        data = _get("/api/check")
+        cve_check = [c for c in data["checks"] if "CVE" in c["name"]]
+        assert len(cve_check) >= 1
+        assert cve_check[0]["ok"] == True
+
+    def test_check_docker_env(self):
+        """Docker check is a boolean."""
+        data = _get("/api/check")
+        docker = [c for c in data["checks"] if "Docker" in c["name"]]
+        assert len(docker) >= 1
+        assert isinstance(docker[0]["ok"], bool)
+
+    def test_check_llm_key(self):
+        """LLM key check returns a value."""
+        data = _get("/api/check")
+        llm = [c for c in data["checks"] if "LLM" in c["name"]]
+        assert len(llm) >= 1
+        assert isinstance(llm[0]["ok"], bool)
+
+    def test_check_html_has_check_button(self):
+        """The index page has the environment check button."""
+        url = f"{BASE_URL}/"
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            html = resp.read().decode()
+            assert "环境检测" in html
+
+    def test_check_html_has_preflight_in_form(self):
+        """The index page has preflight check in the run form."""
+        url = f"{BASE_URL}/"
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            html = resp.read().decode()
+            assert "前置检测" in html
