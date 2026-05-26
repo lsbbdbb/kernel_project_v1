@@ -3,7 +3,7 @@ id: env_syncconfig
 tags: syncconfig, Kconfig, environment, make olddefconfig, config
 title: syncconfig error during kpatch-build
 Error: "*** Error during sync of the configuration." / "make[3]: *** [scripts/kconfig/Makefile:77: syncconfig] Error 1"
-This is an environment issue, not a patch problem. The kernel .config needs to be refreshed before building. Fix: run "make olddefconfig" in the kernel source directory before running kpatch-build. This regenerates the auto.conf file that syncconfig failed on. After running olddefconfig, retry kpatch-build.
+This is an environment issue, not a patch problem. Do not automatically regenerate or touch configuration files inside a selected target baseline. Stop automatic acceptance and require an operator to prepare a separate baseline with the exact VM `.config`, release metadata, and matching build inputs before retrying.
 
 ---
 type: failure_pattern
@@ -82,6 +82,14 @@ This often requires human review (manual_required) to implement the correct work
 
 ---
 type: failure_pattern
+id: kpatch_symbol_section_offset
+tags: create-diff-object, kpatch_bundle_symbols, section offset, patchability
+title: create-diff-object symbol is not at section start
+Error messages: "kpatch_bundle_symbols: ... symbol ... at offset ... within section ... expected 0"
+The patch compiles, but `create-diff-object` cannot safely correlate one or more changed function sections into a livepatch object. Treat this as a kpatch limitation and require human review; do not attempt an automatic semantic rewrite or load a partial module.
+
+---
+type: failure_pattern
 id: kpatch_jump_label
 tags: jump label, static_branch, static_key, module key
 title: Jump label with module-defined key
@@ -93,12 +101,12 @@ type: failure_pattern
 id: env_compiler_version
 tags: compiler version, gcc mismatch, build error
 title: Compiler version mismatch
-WARNING: "Skipping compiler version matching check (not recommended)"
-kpatch-build compares compiler versions between original and patched builds. If different compilers are used, object files may differ in ways unrelated to the patch. Use --skip-compiler-check to bypass, but understand that spurious differences may result. For consistent results, always use the same compiler for both builds. In Docker environments, this is typically not an issue.
+Error: "gcc/kernel version mismatch" / warning: "Skipping compiler version matching check (not recommended)"
+kpatch-build compares the active compiler to the compiler recorded in the target kernel. Different compiler builds can introduce unrelated object differences. Do not use `--skip-compiler-check` for a module intended for runtime loading. Install the exact compiler package recorded by the target kernel or stop for manual environment remediation.
 
 ---
 type: failure_pattern
 id: env_module_disabled
 tags: CONFIG, module disabled, config not set, kernel config
 title: Patch target is disabled by kernel configuration
-The patch modifies code in a module (e.g., Bluetooth, UBLK) that is not enabled in the target kernel's .config (CONFIG_*=not_set). kpatch-build cannot build what isn't configured. Options: (1) Enable the module in .config (make menuconfig) and rebuild the kernel source tree. (2) If the module truly isn't needed, the patch is not applicable to this kernel config. (3) Generate a report noting the patch could be applied if the config changes.
+The patch modifies code in a module (e.g., Bluetooth, UBLK) that is not enabled in the target kernel's `.config` (`CONFIG_*=not_set`). Only a pre-build mapping from every patched target object to disabled CONFIG symbols can justify automatic skipping. A later `no changed objects found` message without that evidence is ambiguous and requires human review.

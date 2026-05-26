@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     volumes:
       - .:/app:z
-      - ./kernel-src:/kernel-src:z
+      - /home/lee/kernel-livepatch-agent/acceptance_vm_20260525/source_tree/linux-6.6.102-5.2.an23:/kernel-src/linux-6.6.102-5.2.an23.x86_64:z
     working_dir: /app
     environment:
       - KERNEL_SRC=/kernel-src/linux-6.6.102-5.2.an23.x86_64
@@ -18,7 +18,7 @@ services:
       dockerfile: Dockerfile
     volumes:
       - .:/app:z
-      - ./kernel-src:/kernel-src:z
+      - /home/lee/kernel-livepatch-agent/acceptance_vm_20260525/source_tree/linux-6.6.102-5.2.an23:/kernel-src/linux-6.6.102-5.2.an23.x86_64:z
     working_dir: /app
     environment:
       - KERNEL_SRC=/kernel-src/linux-6.6.102-5.2.an23.x86_64
@@ -33,7 +33,7 @@ services:
       dockerfile: Dockerfile
     volumes:
       - .:/app:z
-      - ./kernel-src:/kernel-src:z
+      - /home/lee/kernel-livepatch-agent/acceptance_vm_20260525/source_tree/linux-6.6.102-5.2.an23:/kernel-src/linux-6.6.102-5.2.an23.x86_64:z
       - agent-output:/tmp/test_workspace
     working_dir: /app
     environment:
@@ -48,7 +48,7 @@ services:
       dockerfile: Dockerfile
     volumes:
       - .:/app:z
-      - ./kernel-src:/kernel-src:z
+      - /home/lee/kernel-livepatch-agent/acceptance_vm_20260525/source_tree/linux-6.6.102-5.2.an23:/kernel-src/linux-6.6.102-5.2.an23.x86_64:z
       - agent-output:/tmp/test_workspace
     working_dir: /app
     environment:

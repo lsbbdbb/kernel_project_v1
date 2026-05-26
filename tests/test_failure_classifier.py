@@ -54,7 +54,7 @@ class TestFailureClassifier:
         failure = classifier.classify(log_path)
         assert failure["reason_code"] == "unrecognized"
 
-    def test_classify_disabled_module_as_skip(self):
+    def test_no_changed_objects_without_config_evidence_requires_review(self):
         log_path = os.path.join(self.tmpdir, "build.log")
         with open(log_path, "w") as f:
             f.write("ERROR: no changed objects found; unable to build livepatch\n")
@@ -62,9 +62,25 @@ class TestFailureClassifier:
 
         failure = classifier.classify(log_path)
 
-        assert failure["category"] == "config"
-        assert failure["reason_code"] == "module_disabled"
-        assert failure["next_action"] == "skip"
+        assert failure["category"] == "kpatch_limit"
+        assert failure["reason_code"] == "no_changed_objects"
+        assert failure["next_action"] == "manual_required"
+
+    def test_classify_symbol_section_offset_as_kpatch_limit(self):
+        log_path = os.path.join(self.tmpdir, "build.log")
+        with open(log_path, "w") as f:
+            f.write(
+                "create-diff-object: ERROR: ip_output.o: kpatch_bundle_symbols: "
+                "260: symbol neigh_hh_output at offset 16 within section "
+                ".text.neigh_hh_output, expected 0: Success\n"
+            )
+
+        failure = FailureClassifier(self.tmpdir, "CVE-2026-0001").classify(log_path)
+
+        assert failure["category"] == "kpatch_limit"
+        assert failure["reason_code"] == "symbol_section_offset"
+        assert failure["retryable"] is False
+        assert failure["next_action"] == "manual_required"
 
     def test_classify_source_permission_as_environment_failure(self):
         log_path = os.path.join(self.tmpdir, "build.log")
@@ -108,6 +124,28 @@ class TestFailureClassifier:
 
         assert failure["category"] == "env_missing"
         assert failure["reason_code"] == "setlocalversion_incompatible"
+
+    def test_classify_missing_openssl_as_environment_failure(self):
+        log_path = os.path.join(self.tmpdir, "build.log")
+        with open(log_path, "w") as f:
+            f.write("/bin/sh: line 1: openssl: command not found\n")
+
+        failure = FailureClassifier(self.tmpdir, "CVE-2026-0001").classify(log_path)
+
+        assert failure["category"] == "env_missing"
+        assert failure["reason_code"] == "missing_build_tool"
+        assert failure["next_action"] == "fix_environment"
+
+    def test_classify_compiler_mismatch_as_environment_failure(self):
+        log_path = os.path.join(self.tmpdir, "build.log")
+        with open(log_path, "w") as f:
+            f.write("ERROR: gcc/kernel version mismatch\n")
+
+        failure = FailureClassifier(self.tmpdir, "CVE-2026-0001").classify(log_path)
+
+        assert failure["category"] == "env_missing"
+        assert failure["reason_code"] == "compiler_mismatch"
+        assert failure["next_action"] == "fix_environment"
 
     def test_failure_json_saved(self):
         log_path = os.path.join(self.tmpdir, "build.log")

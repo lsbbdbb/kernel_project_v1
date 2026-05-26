@@ -62,6 +62,18 @@ class TestRewriteAdvisor:
 
         assert plan["decision"] == "manual_required"
 
+    def test_struct_and_data_rewrites_are_manual_even_for_rewriteable_unit(self):
+        change_units = {
+            "units": [{
+                "change_id": "CU-001", "file": "net/example.c",
+                "function": "example_check", "rewrite_allowed": True,
+            }]
+        }
+        for reason in ("struct_or_data_change", "field_mismatch"):
+            failure = {"category": "kpatch_limit", "reason_code": reason, "retryable": False}
+            plan = self.advisor.create_rewrite_plan(failure, change_units, attempt=1)
+            assert plan["decision"] == "manual_required"
+
     def test_rewrite_plan_file_saved(self):
         failure = {
             "category": "compile", "reason_code": "api_mismatch",
@@ -133,6 +145,15 @@ class TestRewriteAdvisor:
         assert result["output_path"] is None
         assert validate.call_count == 2
         assert not os.path.exists(os.path.join(self.cve_dir, "patches", "attempt_1.patch"))
+
+    def test_rewrite_is_not_accepted_without_target_source_git_check(self, monkeypatch):
+        patch = "--- a/net/example.c\n+++ b/net/example.c\n@@ -1 +1 @@\n-old\n+new\n"
+        monkeypatch.setattr(
+            "agent.tools.semantic_validator.SemanticValidator.validate",
+            lambda self, original, rewritten: {"valid": True},
+        )
+
+        assert self.advisor._validate_rewrite(patch, patch, "/missing/kernel/tree") is False
 
     def test_rule_rewrite_signals_offset_api_and_include_actions(self):
         patch = "--- a/net/example.c\n+++ b/net/example.c\n@@ -10,2 +10,2 @@\n-old\n+new\n"

@@ -80,6 +80,12 @@ class FailureClassifier:
             "retryable": False, "next_action": "manual_required",
         },
         {
+            "pattern_id": "kpatch.symbol_section_offset", "stage": "build",
+            "category": "kpatch_limit", "reason_code": "symbol_section_offset",
+            "matchers": [r"kpatch_bundle_symbols:.*symbol .* at offset .* within section .* expected 0"],
+            "retryable": False, "next_action": "manual_required",
+        },
+        {
             "pattern_id": "env.no_vmlinux", "stage": "env_check",
             "category": "env_missing", "reason_code": "missing_vmlinux",
             "matchers": [r"vmlinux not found", r"cannot find vmlinux", r"ERROR:.*vmlinux"],
@@ -110,10 +116,22 @@ class FailureClassifier:
             "retryable": False, "next_action": "fix_environment",
         },
         {
-            "pattern_id": "config.module_disabled", "stage": "config_check",
-            "category": "config", "reason_code": "module_disabled",
+            "pattern_id": "env.missing_build_tool", "stage": "env_check",
+            "category": "env_missing", "reason_code": "missing_build_tool",
+            "matchers": [r"openssl: command not found"],
+            "retryable": False, "next_action": "fix_environment",
+        },
+        {
+            "pattern_id": "env.compiler_mismatch", "stage": "env_check",
+            "category": "env_missing", "reason_code": "compiler_mismatch",
+            "matchers": [r"gcc/kernel version mismatch"],
+            "retryable": False, "next_action": "fix_environment",
+        },
+        {
+            "pattern_id": "kpatch.no_changed_objects", "stage": "build",
+            "category": "kpatch_limit", "reason_code": "no_changed_objects",
             "matchers": [r"no changed objects found"],
-            "retryable": False, "next_action": "skip",
+            "retryable": False, "next_action": "manual_required",
         },
         {
             "pattern_id": "env.syncconfig", "stage": "env_check",

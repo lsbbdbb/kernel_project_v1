@@ -54,6 +54,15 @@
   auto_retry_allowed: false
   requires_human_review: true
 
+- pattern_id: kpatch.symbol_section_offset
+  category: kpatch_limit
+  reason_code: symbol_section_offset
+  matchers:
+    - "kpatch_bundle_symbols:.*symbol .* at offset .* within section .* expected 0"
+  action: manual_required
+  auto_retry_allowed: false
+  requires_human_review: true
+
 - pattern_id: apply.file_missing
   category: patch_apply
   reason_code: file_missing
@@ -143,14 +152,32 @@
   auto_retry_allowed: false
   requires_human_review: false
 
-- pattern_id: config.module_disabled
-  category: config
-  reason_code: module_disabled
+- pattern_id: env.missing_build_tool
+  category: env_missing
+  reason_code: missing_build_tool
   matchers:
-    - "no changed objects found"
-  action: skip
+    - "openssl: command not found"
+  action: fix_environment
   auto_retry_allowed: false
   requires_human_review: false
+
+- pattern_id: env.compiler_mismatch
+  category: env_missing
+  reason_code: compiler_mismatch
+  matchers:
+    - "gcc/kernel version mismatch"
+  action: fix_environment
+  auto_retry_allowed: false
+  requires_human_review: false
+
+- pattern_id: kpatch.no_changed_objects
+  category: kpatch_limit
+  reason_code: no_changed_objects
+  matchers:
+    - "no changed objects found"
+  action: manual_required
+  auto_retry_allowed: false
+  requires_human_review: true
 
 - pattern_id: env.syncconfig
   category: env_missing

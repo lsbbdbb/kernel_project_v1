@@ -30,6 +30,8 @@ class KpatchBuilder:
             "input_patch": patch_path,
             "source_dir": source_dir,
             "vmlinux": vmlinux_path,
+            "kpatch_build_binary": None,
+            "kpatch_build_ref": os.environ.get("KPATCH_BUILD_REF"),
             "expected_kernel_version": expected_kernel_version,
             "detected_kernel_version": None,
             "return_code": -1,
@@ -51,7 +53,9 @@ class KpatchBuilder:
                 result["error"] = release_error
                 result["return_code"] = 2
                 return self._save_result(result, attempt)
-        cmd = ["kpatch-build", "--skip-compiler-check", "-s", source_dir, "-v", vmlinux_path, patch_path]
+        kpatch_build_bin = os.environ.get("KPATCH_BUILD_BIN", "kpatch-build")
+        result["kpatch_build_binary"] = shutil.which(kpatch_build_bin) or kpatch_build_bin
+        cmd = [kpatch_build_bin, "-s", source_dir, "-v", vmlinux_path, patch_path]
         if kernel_devel_path:
             cmd.extend(["-d", kernel_devel_path])
         try:
@@ -77,7 +81,7 @@ class KpatchBuilder:
         except subprocess.TimeoutExpired:
             result["error"] = "Build timed out after 30 minutes"
         except FileNotFoundError:
-            result["error"] = "kpatch-build not found in PATH"
+            result["error"] = f"{kpatch_build_bin} not found in PATH"
         except Exception as e:
             result["error"] = str(e)
 

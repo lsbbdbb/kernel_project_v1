@@ -11,8 +11,8 @@ def test_load_failure_patterns_without_pyyaml(monkeypatch):
 
     assert len(patterns) >= 9
     assert any(p["reason_code"] == "api_mismatch" for p in patterns)
-    assert any(p["reason_code"] == "module_disabled"
-               and p["next_action"] == "skip" for p in patterns)
+    assert any(p["reason_code"] == "no_changed_objects"
+               and p["next_action"] == "manual_required" for p in patterns)
 
 
 def test_load_rewrite_strategies_without_pyyaml(monkeypatch):
@@ -22,5 +22,6 @@ def test_load_rewrite_strategies_without_pyyaml(monkeypatch):
     strategies = KnowledgeLoader.load_rewrite_strategies()
 
     assert strategies["api_mismatch"]["auto_allowed"] is True
-    assert strategies["struct_abi"]["auto_allowed"] is True
-    assert strategies["data_change"]["auto_allowed"] is True
+    assert strategies["no_fentry"]["auto_allowed"] is False
+    assert strategies["struct_abi"]["auto_allowed"] is False
+    assert strategies["data_change"]["auto_allowed"] is False

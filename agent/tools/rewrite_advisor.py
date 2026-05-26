@@ -47,17 +47,17 @@ class RewriteAdvisor:
         },
         "no_fentry": {
             "description": "Function not traceable, generate caller wrapper",
-            "auto_allowed": True,
+            "auto_allowed": False,
             "semantic_guard": ["must_not_broaden_fix_scope"],
         },
         "struct_abi": {
             "description": "Structure layout changes - generate wrapper with field mapping",
-            "auto_allowed": True,
+            "auto_allowed": False,
             "semantic_guard": [],
         },
         "data_change": {
             "description": "Static variable to dynamic allocation conversion",
-            "auto_allowed": True,
+            "auto_allowed": False,
             "semantic_guard": ["must_not_leak_allocated_memory"],
         },
     }
@@ -363,12 +363,11 @@ class RewriteAdvisor:
         except ImportError:
             pass
 
-        # git apply --check (needs a real source tree)
+        # Automatic rewrites must be shown applicable to the exact target tree.
         if target_source_dir and os.path.isdir(target_source_dir):
             return self._git_apply_check(rewritten_patch, target_source_dir)
 
-        # No source tree to validate against — accept if semantic check passed
-        return True
+        return False
 
     @staticmethod
     def _git_apply_check(patch_content: str, source_dir: str) -> bool:
