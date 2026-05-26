@@ -315,6 +315,167 @@ def api_environment():
 
 
 # ---------------------------------------------------------------------------
+# Pre-flight checks
+# ---------------------------------------------------------------------------
+
+@app.route("/api/check")
+def api_check():
+    """Run pre-flight environment checks and return pass/fail for each."""
+    checks = []
+    kernel_version = "6.6.102-5.2.an23.x86_64"
+
+    # 1. kpatch-build
+    kpatch_ok = False
+    kpatch_version = ""
+    try:
+        proc = subprocess.run(
+            ["kpatch-build", "--version"],
+            capture_output=True, text=True, timeout=10,
+        )
+        kpatch_ok = proc.returncode == 0
+        kpatch_version = proc.stdout.strip() or proc.stderr.strip()
+    except Exception:
+        pass
+    checks.append({
+        "name": "kpatch-build",
+        "ok": kpatch_ok,
+        "value": kpatch_version or ("not found" if not kpatch_ok else ""),
+        "hint": "安装 kpatch-build：docker compose build agent" if not kpatch_ok else "",
+        "severity": "error",
+    })
+
+    # 2. Docker environment
+    docker = os.path.exists("/.dockerenv")
+    checks.append({
+        "name": "Docker 环境",
+        "ok": docker,
+        "value": "是" if docker else "否（运行在宿主机）",
+        "hint": "" if docker else "建议在 Docker 中运行：docker compose up agent-run",
+        "severity": docker and "info" or "warning",
+    })
+
+    # 3. Kernel source tree
+    env_src = os.getenv("KERNEL_SRC", "")
+    candidates = []
+    if env_src:
+        candidates.append(("KERNEL_SRC env", env_src))
+    candidates.append(("默认路径", f"kernel-src/linux-{kernel_version}"))
+    candidates.append(("本地路径", f"/kernel-src/linux-{kernel_version}"))
+
+    src_found = None
+    for label, path in candidates:
+        expanded = os.path.expandvars(os.path.expanduser(path))
+        vmlinux = os.path.join(expanded, "vmlinux")
+        if os.path.isdir(expanded) and os.path.isfile(vmlinux):
+            src_found = (label, expanded)
+            break
+        elif os.path.isdir(expanded):
+            if src_found is None:
+                src_found = (label, expanded, "missing vmlinux")
+
+    src_ok = src_found and isinstance(src_found, tuple) and len(src_found) == 2
+    src_value = ""
+    src_hint = ""
+    if src_found and len(src_found) == 2:
+        src_value = f"{src_found[0]}: {src_found[1]}"
+    elif src_found and len(src_found) == 3:
+        src_value = f"{src_found[0]}: {src_found[1]} ({src_found[2]})"
+        src_hint = f"执行: cd {src_found[1]} && make defconfig && make -j$(nproc) vmlinux modules_prepare"
+    else:
+        src_value = "未找到"
+        src_hint = "下载内核源码: bash scripts/download_kernel_src.sh 或设置 KERNEL_SRC 环境变量"
+    checks.append({
+        "name": "内核源码树",
+        "ok": src_ok,
+        "value": src_value,
+        "hint": src_hint,
+        "severity": "error" if not src_found else ("warning" if not src_ok else "ok"),
+    })
+
+    # 4. vmlinux
+    env_vmlinux = os.getenv("VMLINUX_PATH", "")
+    vmlinux_ok = False
+    vmlinux_value = ""
+    if env_vmlinux and os.path.isfile(env_vmlinux):
+        vmlinux_ok = True
+        vmlinux_value = f"VMLINUX_PATH: {env_vmlinux}"
+    elif src_found and isinstance(src_found, tuple) and len(src_found) == 2:
+        vm = os.path.join(src_found[1], "vmlinux")
+        if os.path.isfile(vm):
+            vmlinux_ok = True
+            vmlinux_value = vm
+    if not vmlinux_ok:
+        vmlinux_value = "未找到 vmlinux"
+    checks.append({
+        "name": "vmlinux",
+        "ok": vmlinux_ok,
+        "value": vmlinux_value,
+        "hint": "" if vmlinux_ok else "kpatch-build -v 参数需要 vmlinux。设置 VMLINUX_PATH 环境变量或先构建内核",
+        "severity": "error" if not vmlinux_ok else "ok",
+    })
+
+    # 5. LLM keys
+    deepseek = bool(os.getenv("DEEPSEEK_API_KEY"))
+    openai = bool(os.getenv("OPENAI_API_KEY"))
+    llm_ok = deepseek or openai
+    checks.append({
+        "name": "LLM API Key",
+        "ok": llm_ok,
+        "value": "DeepSeek: " + ("✅" if deepseek else "❌") + ", OpenAI: " + ("✅" if openai else "❌"),
+        "hint": "" if llm_ok else "设置 DEEPSEEK_API_KEY 或 OPENAI_API_KEY 环境变量启用 LLM 模式（纯规则模式不需要）",
+        "severity": "info",
+    })
+
+    # 6. sample_cves.txt
+    cves_file = os.path.isfile("sample_cves.txt")
+    checks.append({
+        "name": "CVE 列表文件",
+        "ok": cves_file,
+        "value": "sample_cves.txt" + (" ✅" if cves_file else " ❌ 未找到"),
+        "hint": "",
+        "severity": "error" if not cves_file else "ok",
+    })
+
+    # 7. Git safe directory (for kernel source if it's a git repo)
+    if src_found and isinstance(src_found, tuple) and len(src_found) >= 2:
+        src_path = src_found[1] if len(src_found) == 2 else src_found[1]
+        git_dir = os.path.join(src_path, ".git")
+        git_safe = not os.path.isdir(git_dir)  # if not a git repo, no issue
+        if os.path.isdir(git_dir):
+            try:
+                proc = subprocess.run(
+                    ["git", "config", "--global", "--get", "safe.directory", src_path],
+                    capture_output=True, text=True, timeout=5,
+                )
+                git_safe = proc.returncode == 0
+            except Exception:
+                pass
+        checks.append({
+            "name": "Git 安全目录",
+            "ok": git_safe,
+            "value": "内核源码是 Git 仓库" + (" ✅" if git_safe else " ❌ 未注册 safe.directory"),
+            "hint": "" if git_safe else f"执行: git config --global --add safe.directory {src_path}",
+            "severity": "warning" if not git_safe else "ok",
+        })
+
+    # Summary
+    errors = sum(1 for c in checks if c["severity"] == "error" and not c["ok"])
+    warnings = sum(1 for c in checks if c["severity"] == "warning" and not c["ok"])
+    ok = errors == 0
+
+    return jsonify({
+        "ok": ok,
+        "summary": {
+            "total": len(checks),
+            "passed": sum(1 for c in checks if c["ok"]),
+            "errors": errors,
+            "warnings": warnings,
+        },
+        "checks": checks,
+    })
+
+
+# ---------------------------------------------------------------------------
 # SSE — real-time event stream
 # ---------------------------------------------------------------------------
 
