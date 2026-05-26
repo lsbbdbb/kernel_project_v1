@@ -27,19 +27,47 @@ _run_process: Optional[subprocess.Popen] = None
 _run_thread: Optional[threading.Thread] = None
 
 
+def _docker_available() -> bool:
+    """Check if Docker is available (running inside container OR CLI accessible)."""
+    if os.path.exists("/.dockerenv"):
+        return True
+    try:
+        proc = subprocess.run(
+            ["docker", "info", "--format", "{{.ServerVersion}}"],
+            capture_output=True, text=True, timeout=5,
+        )
+        return proc.returncode == 0 and bool(proc.stdout.strip())
+    except Exception:
+        return False
+
+
 def _find_latest_workdir() -> Optional[str]:
-    """Find the most recent run_* directory."""
+    """Find the most recent run_* or docker_run directory."""
+    # Prefer docker_run if it exists (explicit Docker-run indicator)
+    if os.path.isdir("docker_run") and os.path.isfile(os.path.join("docker_run", "run_config.json")):
+        return os.path.abspath("docker_run")
+
     candidates = sorted(
-        [d for d in os.listdir(".") if d.startswith("run_") and os.path.isdir(d)],
+        [d for d in os.listdir(".") if (
+            d.startswith("run_") and os.path.isdir(d)
+        )],
         key=lambda d: os.path.getmtime(d),
         reverse=True,
     )
     for c in candidates:
         if os.path.isfile(os.path.join(c, "run_config.json")):
             return os.path.abspath(c)
-    # Also check output_artifacts
-    if os.path.isdir("output_artifacts"):
-        return os.path.abspath("output_artifacts")
+    # Also check output_artifacts / out
+    for alt in ["output_artifacts", "out"]:
+        if os.path.isdir(alt):
+            cfg = os.path.join(alt, "run_config.json")
+            if os.path.isfile(cfg):
+                return os.path.abspath(alt)
+            # Check one level deeper
+            for sub in os.listdir(alt):
+                sub_path = os.path.join(alt, sub)
+                if os.path.isdir(sub_path) and os.path.isfile(os.path.join(sub_path, "run_config.json")):
+                    return os.path.abspath(sub_path)
     return None
 
 
@@ -408,9 +436,11 @@ def api_pipeline_states():
 @app.route("/api/environment")
 def api_environment():
     """Return environment information."""
-    docker = os.path.exists("/.dockerenv")
+    docker_inside = os.path.exists("/.dockerenv")
+    docker_cli = _docker_available()
     info = {
-        "docker": docker,
+        "docker": docker_inside,
+        "docker_available": docker_cli,
         "python": sys.version,
         "workdir": _workdir,
         "kernel_src": os.getenv("KERNEL_SRC", ""),
@@ -459,13 +489,16 @@ def api_check():
     })
 
     # 2. Docker environment
-    docker = os.path.exists("/.dockerenv")
+    docker_inside = os.path.exists("/.dockerenv")
+    docker_cli = _docker_available()
+    docker_ok = docker_inside or docker_cli
+    docker_label = "内部运行" if docker_inside else ("CLI 可用" if docker_cli else "未安装")
     checks.append({
         "name": "Docker 环境",
-        "ok": docker,
-        "value": "是" if docker else "否（运行在宿主机）",
-        "hint": "" if docker else "建议在 Docker 中运行：docker compose up agent-run",
-        "severity": docker and "info" or "warning",
+        "ok": docker_ok,
+        "value": docker_label,
+        "hint": "" if docker_ok else "安装 Docker：dnf install docker",
+        "severity": "info" if docker_ok else "warning",
     })
 
     # 3. Kernel source tree

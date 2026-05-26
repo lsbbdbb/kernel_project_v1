@@ -1,0 +1,32 @@
+{
+  "generated_at": "2026-05-26T18:54:13.937025+00:00",
+  "kernel_version": "6.6.102-5.2.an23.x86_64",
+  "total_cves": 3,
+  "results": {
+    "success": 0,
+    "failed": 0,
+    "manual_required": 1,
+    "skipped": 2
+  },
+  "success_rate": 0.0,
+  "cve_reports": [
+    {
+      "cve_id": "CVE-2026-43284",
+      "status": "skipped",
+      "attempts": 0,
+      "failure_category": null
+    },
+    {
+      "cve_id": "CVE-2026-43018",
+      "status": "skipped",
+      "attempts": 0,
+      "failure_category": null
+    },
+    {
+      "cve_id": "CVE-2025-38182",
+      "status": "manual_required",
+      "attempts": 1,
+      "failure_category": "patch_apply"
+    }
+  ]
+}

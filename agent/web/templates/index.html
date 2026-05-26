@@ -752,7 +752,7 @@ async function renderEnv() {
     const grid = document.getElementById('envGrid');
 
     const items = [
-      { key: 'Docker 环境', val: data.docker ? '✅ 是' : '❌ 否' },
+      { key: 'Docker 环境', val: data.docker ? '✅ 容器内' : (data.docker_available ? '✅ CLI 可用' : '❌ 未安装') },
       { key: 'Python', val: data.python || '—' },
       { key: '工作目录', val: data.workdir || '—' },
       { key: 'KERNEL_SRC', val: data.kernel_src || '—' },
