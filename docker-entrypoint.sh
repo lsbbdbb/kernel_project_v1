@@ -45,12 +45,14 @@ case "${1:-test}" in
         exec /bin/bash
         ;;
     run)
-        echo ">>> Running agent with sample CVEs (LLM optional)..."
+        echo ">>> Running agent with sample CVEs..."
         exec python3 -m agent --cves sample_cves.txt \
             --workdir "${WORKDIR:-/tmp/test_workspace}" \
             --kernel-version "$KERNEL_VERSION" \
             --llm-provider "${LLM_PROVIDER:-deepseek}" \
-            --llm-model "${LLM_MODEL:-deepseek-v4-pro}"
+            --llm-model "${LLM_MODEL:-deepseek-v4-pro}" \
+            --vm-host "${VM_HOST:-}" \
+            --vm-poc "${VM_POC:-}"
         ;;
     run-no-llm)
         echo ">>> Running agent with sample CVEs (rule-only mode)..."

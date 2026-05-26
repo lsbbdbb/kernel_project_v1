@@ -893,6 +893,77 @@ def main():
     print(f"\nSummary written to: {os.path.join(workdir, 'summary.json')}")
     print("Agent run complete.")
 
+    # Generate organized out/ folder
+    out_dir = os.path.join(os.path.dirname(workdir), "out")
+    _generate_out_folder(workdir, out_dir, cve_ids, summary)
+
+
+def _generate_out_folder(workdir: str, out_dir: str, cve_ids: list, summary: dict):
+    """Generate organized out/ folder with results and reports."""
+    os.makedirs(out_dir, exist_ok=True)
+
+    # Copy summary
+    import shutil as _shutil
+    src_summary = os.path.join(workdir, "summary.json")
+    if os.path.exists(src_summary):
+        _shutil.copy2(src_summary, os.path.join(out_dir, "summary.json"))
+
+    # Per-CVE results
+    for cve_id in cve_ids:
+        cve_out = os.path.join(out_dir, cve_id)
+        os.makedirs(cve_out, exist_ok=True)
+
+        cve_dir = os.path.join(workdir, cve_id)
+        if not os.path.isdir(cve_dir):
+            continue
+
+        # Copy report
+        for fname in ["report.json", "state.json", "failure.json",
+                       "verification.json", "patch_ir.json", "events.json"]:
+            src = os.path.join(cve_dir, fname)
+            if os.path.exists(src):
+                _shutil.copy2(src, os.path.join(cve_out, fname))
+
+        # Copy logs
+        logs_src = os.path.join(cve_dir, "logs")
+        logs_dst = os.path.join(cve_out, "logs")
+        if os.path.isdir(logs_src):
+            if os.path.exists(logs_dst):
+                _shutil.rmtree(logs_dst)
+            _shutil.copytree(logs_src, logs_dst)
+
+        # Copy artifacts (.ko files)
+        art_src = os.path.join(cve_dir, "artifacts")
+        art_dst = os.path.join(cve_out, "artifacts")
+        if os.path.isdir(art_src):
+            if os.path.exists(art_dst):
+                _shutil.rmtree(art_dst)
+            _shutil.copytree(art_src, art_dst)
+
+        # Copy patches
+        patch_src = os.path.join(cve_dir, "patches")
+        patch_dst = os.path.join(cve_out, "patches")
+        if os.path.isdir(patch_src):
+            if os.path.exists(patch_dst):
+                _shutil.rmtree(patch_dst)
+            _shutil.copytree(patch_src, patch_dst)
+
+    # Write run metadata
+    import datetime as _dt
+    meta = {
+        "generated_at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
+        "workdir": workdir,
+        "cve_count": len(cve_ids),
+        "results": summary.get("results", {}),
+    }
+    with open(os.path.join(out_dir, "run_metadata.json"), "w") as f:
+        json.dump(meta, f, indent=2, ensure_ascii=False)
+
+    print(f"\nOutput written to: {out_dir}")
+    for cve_id in cve_ids:
+        has_ko = os.path.exists(os.path.join(out_dir, cve_id, "artifacts", "livepatch.ko"))
+        print(f"  {cve_id}: {'livepatch.ko' if has_ko else 'no artifact'}")
+
 
 if __name__ == "__main__":
     main()
