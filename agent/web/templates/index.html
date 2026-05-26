@@ -148,13 +148,10 @@ header {
 .badge-skipped { background: #1c1917; color: var(--text-dim); }
 .cve-card .cve-detail { margin-top: 8px; font-size: 12px; color: var(--text-dim); }
 .cve-card .cve-detail span { margin-right: 12px; }
-.cve-card .cve-expand {
-  margin-top: 8px; font-size: 11px; color: var(--accent); cursor: pointer;
-  user-select: none;
+.cve-card .cve-stages {
+  display: block; margin-top: 6px; border-top: 1px solid var(--border);
+  padding-top: 6px; max-height: 300px; overflow-y: auto;
 }
-.cve-card .cve-expand:hover { text-decoration: underline; }
-.cve-card .cve-stages { display: none; margin-top: 6px; border-top: 1px solid var(--border); padding-top: 6px; max-height: 300px; overflow-y: auto; }
-.cve-card.open .cve-stages { display: block; }
 .cve-stage {
   display: flex; align-items: center; gap: 6px; padding: 3px 0;
   font-size: 11px; border-bottom: 1px solid rgba(71,85,105,.3);
@@ -595,26 +592,11 @@ function renderCveCards(cves) {
         <span>${c.has_artifact ? '✅ 有 .ko' : ''}</span>
         <span>${errorMsg ? '⚠️ ' + errorMsg : ''}</span>
       </div>
-      ${stagesHtml ? '<div class="cve-expand" onclick="event.stopPropagation();toggleCveStages(this)">📋 展开流水线阶段 (${events.length})</div>' : ''}
       ${stagesHtml}
     `;
     card.onclick = () => openDetail(c.cve_id);
-    // Auto-open for failed CVEs
-    if (isOpen && stagesHtml) {
-      card.classList.add('open');
-      const expander = card.querySelector('.cve-expand');
-      if (expander) expander.textContent = '📋 收起流水线阶段';
-    }
     grid.appendChild(card);
   });
-}
-
-function toggleCveStages(el) {
-  const card = el.closest('.cve-card');
-  card.classList.toggle('open');
-  el.textContent = card.classList.contains('open')
-    ? '📋 收起流水线阶段'
-    : '📋 展开流水线阶段';
 }
 
 // ===== Stats =====

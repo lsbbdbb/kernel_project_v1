@@ -391,19 +391,19 @@ class TestWebApi:
     # Expandable CVE stages tests
     # ------------------------------------------------------------------
 
-    def test_cve_card_has_expand_stages(self):
-        """CVE cards have expandable stage sections."""
+    def test_cve_card_has_permanent_stages(self):
+        """CVE cards always show pipeline stages without toggle."""
         data = _get("/api/status")
         if not data.get("cves"):
             return
-        # Check the HTML has the expand/collapse mechanism
         url = f"{BASE_URL}/"
         req = urllib.request.Request(url)
         with urllib.request.urlopen(req, timeout=10) as resp:
             html = resp.read().decode()
-            assert "toggleCveStages" in html
             assert "cve-stages" in html
             assert "流水线阶段" in html
+            # No expand/collapse toggle
+            assert "toggleCveStages" not in html
 
     def test_permission_error_fix(self):
         """_ensure_kernel_config handles read-only files gracefully."""
