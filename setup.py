@@ -9,10 +9,12 @@ setup(
         "pyyaml>=5.0",
         "openai>=1.0.0",
         "rank-bm25>=0.2.2",
+        "flask>=3.0",
     ],
     entry_points={
         "console_scripts": [
             "run=agent.__main__:main",
+            "web=agent.web.server:main",
         ],
     },
     python_requires=">=3.6",
