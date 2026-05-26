@@ -4,6 +4,7 @@ import os
 import re
 import subprocess
 import hashlib
+import time
 from datetime import datetime, timezone
 from typing import Dict, Optional
 
@@ -40,6 +41,7 @@ class Verifier:
         }
         if not ko_path or not os.path.exists(ko_path):
             result["result"] = "not_tested"
+            result["dmesg"] = None
             result["error"] = f"Artifact not found: {ko_path}"
             self._save_verification(result)
             return result
@@ -95,17 +97,6 @@ class Verifier:
         module_name = os.path.splitext(os.path.basename(ko_path))[0].replace("-", "_")
         with open(verify_log, "w") as log:
             try:
-                proc = subprocess.run(
-                    ["scp", ko_path, f"{vm_host}:/tmp/livepatch.ko"],
-                    stdout=log, stderr=subprocess.STDOUT, timeout=60,
-                )
-                if proc.returncode != 0:
-                    result["load"] = {"return_code": proc.returncode,
-                                      "error": "Failed to transfer module to VM"}
-            except Exception as e:
-                log.write(f"SCP failed: {e}\n")
-                result["load"] = {"return_code": -1, "error": str(e)}
-            try:
                 proc = subprocess.run(["ssh", vm_host, "uname", "-r"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=30)
                 uname = proc.stdout.decode().strip()
                 log.write(f"Target uname -r: {uname}\n")
@@ -122,6 +113,18 @@ class Verifier:
             except Exception as e:
                 log.write(f"SSH uname failed: {e}\n")
                 result["kernel_match"] = False
+                result["load"] = {"return_code": -1, "error": str(e)}
+            try:
+                if result["load"] is None:
+                    proc = subprocess.run(
+                        ["scp", ko_path, f"{vm_host}:/tmp/livepatch.ko"],
+                        stdout=log, stderr=subprocess.STDOUT, timeout=60,
+                    )
+                    if proc.returncode != 0:
+                        result["load"] = {"return_code": proc.returncode,
+                                          "error": "Failed to transfer module to VM"}
+            except Exception as e:
+                log.write(f"SCP failed: {e}\n")
                 result["load"] = {"return_code": -1, "error": str(e)}
             try:
                 if result["load"] is None:
@@ -174,13 +177,55 @@ class Verifier:
                 result["functional_check"] = {"return_code": -1, "error": str(e)}
             try:
                 if result.get("load", {}).get("return_code") == 0:
-                    proc = subprocess.run(
-                        ["ssh", vm_host, "sudo", "rmmod", module_name],
-                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=30,
-                    )
-                    log.write(f"rmmod output: {proc.stdout.decode()}\n")
-                    result["unload"] = {"return_code": proc.returncode,
-                                        "command": f"rmmod {module_name}"}
+                    disable_proc = None
+                    transition_complete = False
+                    if result.get("runtime_check", {}).get("visible") is True:
+                        disable_proc = subprocess.run(
+                            [
+                                "ssh", vm_host, "sudo", "tee",
+                                f"/sys/kernel/livepatch/{module_name}/enabled",
+                            ],
+                            input=b"0\n", stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, timeout=30,
+                        )
+                        log.write(f"disable output: {disable_proc.stdout.decode()}\n")
+                        if disable_proc.returncode == 0:
+                            for _ in range(30):
+                                transition_proc = subprocess.run(
+                                    [
+                                        "ssh", vm_host, "sudo", "cat",
+                                        f"/sys/kernel/livepatch/{module_name}/transition",
+                                    ],
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT, timeout=30,
+                                )
+                                transition = transition_proc.stdout.decode().strip()
+                                log.write(f"transition output: {transition}\n")
+                                if transition_proc.returncode != 0 or transition == "0":
+                                    transition_complete = True
+                                    break
+                                time.sleep(1)
+                    if (
+                        result.get("runtime_check", {}).get("visible") is not True
+                        or disable_proc is None
+                        or disable_proc.returncode != 0
+                        or not transition_complete
+                    ):
+                        result["unload"] = {
+                            "return_code": -1,
+                            "error": "Failed to disable livepatch before module unload",
+                        }
+                    else:
+                        proc = subprocess.run(
+                            ["ssh", vm_host, "sudo", "rmmod", module_name],
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=30,
+                        )
+                        log.write(f"rmmod output: {proc.stdout.decode()}\n")
+                        result["unload"] = {
+                            "return_code": proc.returncode,
+                            "command": f"rmmod {module_name}",
+                            "disabled_before_unload": True,
+                        }
                 else:
                     result["unload"] = {"return_code": -1,
                                         "error": "Module was not loaded"}

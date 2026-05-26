@@ -12,7 +12,7 @@ import json
 import datetime
 import re
 import subprocess
-import traceback
+import shutil
 
 from typing import Dict, List, Optional
 
@@ -227,6 +227,7 @@ def _action_apply_patch(cve_id: str, workdir: str, state_mgr: StateManager) -> D
               "dry_run_ok": False, "error": None, "stage": "apply"}
 
     if os.path.isdir(source_dir) and os.path.isfile(patch_path):
+        # Stage 1: strict git apply --check
         try:
             proc = subprocess.run(
                 ["git", "apply", "--check", patch_path],
@@ -237,22 +238,54 @@ def _action_apply_patch(cve_id: str, workdir: str, state_mgr: StateManager) -> D
                 result["error"] = proc.stderr[:500]
         except Exception as e:
             result["error"] = str(e)
+
+        # Stage 2: if forward fails, check if patch is already applied
+        if not result["dry_run_ok"]:
+            try:
+                rev_proc = subprocess.run(
+                    ["git", "apply", "--check", "--reverse", patch_path],
+                    cwd=source_dir, capture_output=True, text=True, timeout=30,
+                    env={**os.environ, "LC_ALL": "C", "LANG": "C"})
+                if rev_proc.returncode == 0:
+                    result["dry_run_ok"] = True
+                    result["already_applied"] = True
+                    result["note"] = "Patch already applied in target kernel"
+                    result["error"] = None
+            except Exception:
+                pass
+
+        # Stage 3: fallback to patch --dry-run with fuzz
+        if not result["dry_run_ok"]:
+            try:
+                patch_proc = subprocess.run(
+                    ["patch", "-p1", "--dry-run", "-F2", "-i", patch_path],
+                    cwd=source_dir, capture_output=True, text=True, timeout=30)
+                if patch_proc.returncode == 0:
+                    result["dry_run_ok"] = True
+                    result["note"] = "Patch applies with fuzz (patch --dry-run)"
+                    result["error"] = None
+            except Exception:
+                pass
     elif not os.path.isdir(source_dir):
-        result["dry_run_ok"] = True  # Skip dry-run if source unavailable
+        result["dry_run_ok"] = True
         result["note"] = "Source tree not available, skipping dry-run"
 
-    if result["dry_run_ok"]:
+    if result.get("already_applied"):
+        state_mgr.set_final_status(cve_id, "skipped")
+        state_mgr.transition_to(cve_id, "Skipped",
+                                reason="Patch already applied in target kernel")
+    elif result["dry_run_ok"]:
         state_mgr.transition_to(cve_id, "PatchApplied",
-                                reason="Patch passed git apply --check")
+                                reason="Patch passed dry-run check")
     else:
         logs_dir = os.path.join(workdir, cve_id, "logs")
         os.makedirs(logs_dir, exist_ok=True)
         log_path = os.path.join(logs_dir, f"build_{attempt}.log")
         with open(log_path, "w") as log:
-            log.write(result.get("error") or "git apply --check failed\n")
+            log.write(result.get("error") or "patch dry-run failed\n")
         result["log_path"] = log_path
         state_mgr.transition_to(cve_id, "BuildFailed",
-                                reason="Patch failed git apply --check",
+                                reason="Patch failed dry-run check",
                                 evidence={"build_log": log_path})
     return result
 
@@ -599,25 +632,38 @@ def _ensure_kernel_config(source_dir: str):
 
 
 def _clean_kernel_source(source_dir: str):
-    """Restore kernel source tree to a clean git state.
-    
+    """Restore kernel source tree to a clean state after kpatch-build.
+
     Called before and after kpatch-build to prevent build artifacts
     from polluting subsequent runs.
     """
     if not os.path.isdir(source_dir):
         return
+
+    # Method 1: git checkout (fastest, for git-managed trees)
     git_dir = os.path.join(source_dir, ".git")
-    if not os.path.isdir(git_dir):
-        return
+    if os.path.isdir(git_dir):
+        try:
+            subprocess.run(
+                ["git", "checkout", "--", "."],
+                cwd=source_dir, capture_output=True, timeout=60,
+            )
+            subprocess.run(
+                ["git", "clean", "-fd"],
+                cwd=source_dir, capture_output=True, timeout=60,
+            )
+            return
+        except Exception:
+            pass
+
+    # Method 2: restore from .orig backup files (for non-git trees)
     try:
-        subprocess.run(
-            ["git", "checkout", "--", "."],
-            cwd=source_dir, capture_output=True, timeout=60,
-        )
-        subprocess.run(
-            ["git", "clean", "-fd"],
-            cwd=source_dir, capture_output=True, timeout=60,
-        )
+        for root, dirs, files in os.walk(source_dir):
+            for f in files:
+                if f.endswith(".orig"):
+                    orig_path = os.path.join(root, f)
+                    src_path = orig_path[:-5]
+                    shutil.move(orig_path, src_path)
     except Exception:
         pass
 

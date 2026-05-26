@@ -22,6 +22,8 @@ def test_remote_verify_requires_insmod_sysfs_and_rmmod(tmp_path, monkeypatch):
             return subprocess.CompletedProcess(command, 0, stdout=b"fixed_patch\n")
         if command == ["ssh", "root@vm", "uname", "-r"]:
             return subprocess.CompletedProcess(command, 0, stdout=b"6.6.102-5.2.an23.x86_64\n")
+        if command == ["ssh", "root@vm", "sudo", "cat", "/sys/kernel/livepatch/fixed_patch/transition"]:
+            return subprocess.CompletedProcess(command, 0, stdout=b"0\n")
         return subprocess.CompletedProcess(command, 0, stdout=b"ok\n")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
@@ -30,10 +32,19 @@ def test_remote_verify_requires_insmod_sysfs_and_rmmod(tmp_path, monkeypatch):
 
     assert result["result"] == "passed"
     assert result["runtime_check"]["sysfs_path"] == "/sys/kernel/livepatch/fixed_patch"
+    assert commands.index(["ssh", "root@vm", "uname", "-r"]) < commands.index(
+        ["scp", ko_path, "root@vm:/tmp/livepatch.ko"]
+    )
     assert ["ssh", "root@vm", "sudo", "insmod", "/tmp/livepatch.ko"] in commands
     assert ["ssh", "root@vm", "test", "-d", "/sys/kernel/livepatch/fixed_patch"] in commands
     assert ["ssh", "root@vm", "/tmp/dirty_frag_poc"] in commands
+    assert ["ssh", "root@vm", "sudo", "tee", "/sys/kernel/livepatch/fixed_patch/enabled"] in commands
+    assert ["ssh", "root@vm", "sudo", "cat", "/sys/kernel/livepatch/fixed_patch/transition"] in commands
     assert ["ssh", "root@vm", "sudo", "rmmod", "fixed_patch"] in commands
+    assert commands.index(
+        ["ssh", "root@vm", "sudo", "tee", "/sys/kernel/livepatch/fixed_patch/enabled"]
+    ) < commands.index(["ssh", "root@vm", "sudo", "rmmod", "fixed_patch"])
+    assert result["unload"]["disabled_before_unload"] is True
 
 
 def test_remote_load_failure_captures_dmesg(tmp_path, monkeypatch):
@@ -74,6 +85,15 @@ def test_remote_verify_rejects_shell_like_poc_path(tmp_path):
     assert "Invalid VM PoC path" in result["error"]
 
 
+def test_missing_artifact_does_not_claim_runtime_dmesg_evidence(tmp_path):
+    verifier = Verifier(str(tmp_path), "CVE-2026-0005")
+
+    result = verifier.verify(str(tmp_path / "missing.ko"), vm_host="root@vm")
+
+    assert result["result"] == "not_tested"
+    assert result["dmesg"] is None
+
+
 def test_remote_verify_does_not_load_on_kernel_mismatch(tmp_path, monkeypatch):
     verifier, ko_path = _make_verifier(tmp_path)
     commands = []
@@ -91,4 +111,5 @@ def test_remote_verify_does_not_load_on_kernel_mismatch(tmp_path, monkeypatch):
     assert result["result"] == "failed"
     assert result["kernel_match"] is False
     assert "Kernel mismatch" in result["load"]["error"]
+    assert ["scp", ko_path, "root@vm:/tmp/livepatch.ko"] not in commands
     assert ["ssh", "root@vm", "sudo", "insmod", "/tmp/livepatch.ko"] not in commands

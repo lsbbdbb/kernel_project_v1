@@ -27,7 +27,7 @@
     - "git apply --check"
     - "kpatch-build"
 
-- strategy_id: no_fentry_hoist
+- strategy_id: no_fentry
   description: "Move fix to a hookable caller function"
   allowed: false
   requires_human_review: true
@@ -48,7 +48,8 @@
 
 - strategy_id: struct_abi
   description: "Generate wrapper function for struct member changes"
-  allowed: true
+  allowed: false
+  requires_human_review: true
   semantic_guards:
     - "must_keep_original_struct_layout"
     - "wrapper_must_preserve_semantics"
@@ -58,22 +59,11 @@
 
 - strategy_id: data_change
   description: "Convert static variable modification to dynamic allocation"
-  allowed: true
+  allowed: false
+  requires_human_review: true
   semantic_guards:
     - "must_not_leak_allocated_memory"
     - "must_initialize_before_first_use"
   validation:
     - "git apply --check"
     - "kpatch-build"
-
-- strategy_id: no_fentry_hoist
-  description: "Move fix to a hookable caller function via indirect wrapper"
-  allowed: true
-  requires_human_review: false
-  semantic_guards:
-    - "must_not_broaden_fix_scope"
-    - "must_cover_all_vulnerability_paths"
-    - "wrapper_function_must_match_original_signature"
-  validation:
-    - "git apply --check"
-    - "manual_semantic_review"

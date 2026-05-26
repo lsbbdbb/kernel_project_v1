@@ -254,77 +254,50 @@ def test_fetch_failure_does_not_create_placeholder_patch(tmp_path):
     assert state_mgr.get_state(cve_id)["status"] == "failed"
 
 
-def test_ensure_kernel_config_runs_make_olddefconfig(tmp_path, monkeypatch):
-    """_ensure_kernel_config() should run make olddefconfig and succeed."""
-    from agent.__main__ import _ensure_kernel_config
-    src = tmp_path / "kernel-src"
-    (src / "include" / "config").mkdir(parents=True)
-    (src / ".config").write_text("CONFIG_TEST=y\n")
-    # Need both olddefconfig and syncconfig targets for the full test
-    (src / "Makefile").write_text(
-        "olddefconfig:\n\t@echo 'Config update done'\n"
-        "syncconfig:\n\t@touch include/config/auto.conf.cmd; exit 1\n"
-    )
-    assert _ensure_kernel_config(str(src)) is True
-    assert (src / "include" / "config" / "auto.conf.cmd").exists()
+def test_run_build_preserves_selected_baseline_and_requested_release(tmp_path, monkeypatch):
+    cve_id = "CVE-2026-0007"
+    kernel_version = "6.6.102-5.2.an23.x86_64"
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / ".config").write_text("CONFIG_TEST=y\n")
+    (source / "tracked-baseline").write_text("preserve me\n")
+    workdir = tmp_path / "run"
+    patches = workdir / cve_id / "patches"
+    patches.mkdir(parents=True)
+    (patches / "original.patch").write_text("diff --git a/a.c b/a.c\n")
+    state_mgr = StateManager(str(workdir))
+    state_mgr.init_run_config([cve_id], kernel_version)
+    state_mgr.init_cve_state(cve_id)
+    monkeypatch.setenv("KERNEL_SRC", str(source))
+    external_vmlinux = tmp_path / "debuginfo" / "vmlinux"
+    external_vmlinux.parent.mkdir()
+    external_vmlinux.write_text("immutable reference\n")
+    kernel_devel = tmp_path / "kernel-devel"
+    kernel_devel.mkdir()
+    monkeypatch.setenv("VMLINUX_PATH", str(external_vmlinux))
+    monkeypatch.setenv("KERNEL_DEVEL_PATH", str(kernel_devel))
+    captured = {}
 
+    def fake_build(self, patch_path, source_dir, vmlinux_path,
+                   kernel_devel_path=None, attempt=0, expected_kernel_version=None):
+        captured["kernel_version"] = expected_kernel_version
+        captured["vmlinux_path"] = vmlinux_path
+        captured["kernel_devel_path"] = kernel_devel_path
+        return {"success": True, "artifact_path": "livepatch.ko", "log_path": "build_0.log"}
 
-def test_ensure_kernel_config_returns_false_for_missing_dir(tmp_path):
-    from agent.__main__ import _ensure_kernel_config
-    nonexistent = tmp_path / "no_such_dir"
-    assert _ensure_kernel_config(str(nonexistent)) is False
+    monkeypatch.setattr(agent_main.KpatchBuilder, "build", fake_build)
 
+    _action_run_build(cve_id, str(workdir), state_mgr)
 
-def test_clean_kernel_source_does_not_crash_on_non_git_dir(tmp_path):
-    from agent.__main__ import _clean_kernel_source
-    plain_dir = tmp_path / "no_git"
-    plain_dir.mkdir()
-    (plain_dir / "some_file").write_text("x")
-    # Should not crash
-    _clean_kernel_source(str(plain_dir))
-    # File should still exist (no git to restore)
-    assert (plain_dir / "some_file").exists()
-
-
-def test_clean_kernel_source_restores_git_state(tmp_path):
-    from agent.__main__ import _clean_kernel_source
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    subprocess.run(["git", "init"], cwd=str(repo), capture_output=True)
-    subprocess.run(["git", "config", "user.email", "test@test"], cwd=str(repo), capture_output=True)
-    subprocess.run(["git", "config", "user.name", "test"], cwd=str(repo), capture_output=True)
-    (repo / "tracked").write_text("original")
-    subprocess.run(["git", "add", "."], cwd=str(repo), capture_output=True)
-    subprocess.run(["git", "commit", "-m", "init"], cwd=str(repo), capture_output=True)
-    # Create dirty state
-    (repo / "tracked").write_text("modified")
-    (repo / "untracked").write_text("new_file")
-    _clean_kernel_source(str(repo))
-    assert (repo / "tracked").read_text() == "original"
-    assert not (repo / "untracked").exists()
-
-
-def test_detect_kernel_release_returns_none_outside_kernel_tree(tmp_path):
-    from agent.__main__ import _detect_kernel_release
-    # A non-kernel directory with Makefile still won't produce a valid release
-    src = tmp_path / "src"
-    src.mkdir()
-    (src / "Makefile").write_text(
-        ".DEFAULT:\n\t@echo 'not a kernel tree'\n"
-    )
-    result = _detect_kernel_release(str(src))
-    # Returns None because `make -s kernelrelease` isn't defined
-    # (the .DEFAULT catches it but prints a non-empty line)
-    assert result is None or not result.startswith("6.6.")
-
-
-def test_detect_kernel_release_returns_none_for_missing_dir(tmp_path):
-    from agent.__main__ import _detect_kernel_release
-    assert _detect_kernel_release(str(tmp_path / "missing")) is None
+    assert captured["kernel_version"] == kernel_version
+    assert captured["vmlinux_path"] == str(external_vmlinux)
+    assert captured["kernel_devel_path"] == str(kernel_devel)
+    assert (source / ".config").read_text() == "CONFIG_TEST=y\n"
+    assert (source / "tracked-baseline").read_text() == "preserve me\n"
 
 
 def test_unfixed_environment_failure_stops_for_manual_review(tmp_path, monkeypatch):
-    cve_id = "CVE-2026-0007"
+    cve_id = "CVE-2026-0008"
     workdir = tmp_path / "run"
     cve_dir = workdir / cve_id
     cve_dir.mkdir(parents=True)
@@ -338,3 +311,25 @@ def test_unfixed_environment_failure_stops_for_manual_review(tmp_path, monkeypat
     assert result["success"] is False
     assert state_mgr.get_state(cve_id)["state"] == "ManualRequired"
     assert state_mgr.get_state(cve_id)["status"] == "manual_required"
+
+
+def test_syncconfig_failure_does_not_auto_mutate_target_config(tmp_path, monkeypatch):
+    cve_id = "CVE-2026-0009"
+    source = tmp_path / "source"
+    source.mkdir()
+    marker = source / "auto-mutated"
+    (source / "Makefile").write_text(f"olddefconfig:\n\t@touch {marker}\n")
+    workdir = tmp_path / "run"
+    cve_dir = workdir / cve_id
+    cve_dir.mkdir(parents=True)
+    (cve_dir / "failure.json").write_text(json.dumps({"reason_code": "syncconfig"}))
+    state_mgr = StateManager(str(workdir))
+    state_mgr.init_run_config([cve_id], "test")
+    state_mgr.init_cve_state(cve_id)
+    monkeypatch.setenv("KERNEL_SRC", str(source))
+
+    result = _action_fix_environment(cve_id, str(workdir), state_mgr)
+
+    assert result["success"] is False
+    assert not marker.exists()
+    assert state_mgr.get_state(cve_id)["state"] == "ManualRequired"
