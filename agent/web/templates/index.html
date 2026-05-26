@@ -789,6 +789,9 @@ function showRunForm() {
         <div><label>内核版本</label><input type="text" id="runKernel" value="6.6.102-5.2.an23.x86_64" style="width:220px"></div>
         <div><label>最大尝试</label><input type="number" id="runAttempts" value="5" min="1" max="20" style="width:80px"></div>
         <div class="checkbox-row"><input type="checkbox" id="runNoLlm"><label for="runNoLlm">纯规则模式 (--no-llm)</label></div>
+        <div id="runModeHint" style="font-size:11px;color:var(--green);padding:4px 0">
+          🐳 Docker 可用 — 将在容器中运行
+        </div>
         <div style="display:flex;gap:8px">
           <button class="btn btn-primary" onclick="runPreflightCheck()">🔍 前置检测</button>
           <button class="btn" onclick="startAgent()" id="startBtn">▶ 启动</button>
@@ -829,6 +832,19 @@ async function runPreflightCheck() {
     });
     html += '</div>';
 
+    // Update run mode hint based on Docker check
+    const dockerCheck = data.checks.find(c => c.name === 'Docker 环境');
+    const hint = document.getElementById('runModeHint');
+    if (hint && dockerCheck) {
+      if (dockerCheck.ok) {
+        hint.innerHTML = '🐳 Docker 可用 — 将在容器中运行';
+        hint.style.color = 'var(--green)';
+      } else {
+        hint.innerHTML = '💻 Docker 不可用 — 将在宿主机运行';
+        hint.style.color = 'var(--yellow)';
+      }
+    }
+
     box.innerHTML = html;
   } catch (e) {
     box.innerHTML = `<p style="color:var(--red);font-size:13px">检测失败: ${e.message}</p>`;
@@ -852,7 +868,9 @@ async function startAgent() {
     if (data.error) {
       showToast('错误: ' + data.error, 'error');
     } else {
-      showToast('Agent 已启动, 工作目录: ' + data.workdir, 'success');
+      const mode = data.mode || 'host';
+      const modeIcon = mode === 'Docker' ? '🐳' : '💻';
+      showToast(modeIcon + ' Agent 已启动 (' + mode + '模式), 工作目录: ' + data.workdir, 'success');
       document.getElementById('runFormContainer').innerHTML = '';
     }
   } catch (e) {
