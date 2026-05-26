@@ -49,3 +49,44 @@
 - Downloaded the exact Anolis source/devel/debuginfo RPMs and extracted VM-matching configuration, symbol files, source tree, and debuginfo `vmlinux` under `acceptance_vm_20260525/`.
 - Prepared an isolated RPM source baseline following the vendor spec (`EXTRAVERSION` release stamping) plus a recorded compatibility branch for the installed kpatch/setlocalversion interface mismatch.
 - Ran `olddefconfig` and `modules_prepare` in the build container under the host UID; `kernelrelease` now matches the VM exactly. Only the compiler package text differs (`gcc ...-16` in the official build versus `...-17` in the container).
+
+## 2026-05-26
+- Resumed environment-backed acceptance using the exact VM-matching Anolis RPM source/config/debuginfo baseline.
+- Diagnosed the first real `kpatch-build` compiler failure: module signing requires `openssl`, but the build image contained only `openssl-devel`.
+- Began repairing the image dependency and re-auditing the build action after finding hidden `olddefconfig`/release substitution/source-cleanup behavior still present in the current committed code.
+- Restored the safety gate: build now validates the source against the requested VM release without silently regenerating or cleaning the selected kernel baseline; automatic risky rewrites and rewrite-without-target checks are denied.
+- Added regression coverage and ran the full Python suite: `106 passed`.
+- Added generated acceptance/run directories to `.dockerignore` after the first rebuilt image sent about 197 MB of local evidence into its context.
+- Rebuilt `agent-dev` from the repaired image with `openssl`; the reduced context is about 947 KB.
+- Started `acceptance_vm_20260525/build_r3` for the real `CVE-2026-43284` patch. Preflight passed: `/usr/bin/openssl` exists, `kernelrelease=6.6.102-5.2.an23.x86_64`, and `git apply --check` succeeds.
+- Stopped `build_r3` once its log showed the builder still invoked `--skip-compiler-check`; a `.ko` compiled with a known different GCC RPM revision will not be accepted for VM load validation.
+- Removed the compiler-check bypass from `KpatchBuilder`; runtime acceptance now requires a compiler-compatible baseline rather than silently downgrading the gate.
+- Removed automatic `olddefconfig`/`syncconfig` execution from environment remediation; a sync/config preparation failure now stops for manual baseline preparation without modifying selected target inputs.
+- Ran strict `build_r4_strict`: preflight still passed, and kpatch stopped before compile with `gcc/kernel version mismatch` (`-17` image versus `-16` official vmlinux). Added deterministic classification for this environment failure.
+- Confirmed exact GCC `12.3.0-16.an23` RPMs remain available from the official Anolis mirror and pinned the Docker toolchain to that target-kernel compiler set.
+- Hardened remote verification ordering: `Verifier` now confirms VM `uname -r` before transferring any module, so a wrong-kernel host receives neither `scp` nor `insmod`.
+- Rebuilt `agent-dev` with official GCC `12.3.0-16.an23` packages and verified `openssl`, `kernelrelease=6.6.102-5.2.an23.x86_64`, and real-patch `git apply --check`.
+- Ran strict real `CVE-2026-43284` build in `acceptance_vm_20260525/build_r5_gcc16/`: original and patched sources built, then `create-diff-object` failed at ELF extraction because symbols are at section offset `16`; no `.ko` exists for VM load.
+- Correlated the offset with exact VM config `CONFIG_CALL_PADDING=y` and `CONFIG_FUNCTION_ALIGNMENT=16`. Anolis repositories expose only installed `kpatch-build-1.0.0-3.an23`, leaving runtime loading blocked on a padding-capable kpatch toolchain.
+- Added non-retryable `kpatch.symbol_section_offset` classification, and stopped treating bare `no changed objects found` as proof of disabled CONFIG without pre-build mapping evidence.
+- Missing-artifact verification now records `result=not_tested` with `dmesg=null`, rather than claiming a runtime evidence path when no load was performed.
+- Final local validation after safety repairs: `pytest -q` reports `110 passed`, `scripts/verify_all_phases.sh` reports `72/72`, `scripts/verify_phase5_rag.sh` passed, and `git diff --check` passed.
+- Began toolchain remediation for the remaining blocker: upstream `dynup/kpatch` source includes prefix-symbol offset support relevant to the target kernel's 16-byte `CONFIG_CALL_PADDING`, so the next experiment will substitute the build tool while preserving the exact VM config/compiler baseline.
+- Recovered an already-generated upstream-toolchain artifact in `acceptance_vm_20260525/build_r6_upstream_kpatch/`; its build log reports `SUCCESS`, and module metadata confirms target vermagic `6.6.102-5.2.an23.x86_64 ... modversions`.
+- Pinned the successful upstream kpatch build-tool commit in `Dockerfile` so new builder images do not select the Anolis packaged `create-diff-object` that rejects `CONFIG_CALL_PADDING` prefixes.
+- Extended `KpatchBuilder` evidence with selected tool binary/ref fields and an optional `KPATCH_BUILD_BIN` override for controlled toolchain experiments; added focused regression coverage.
+- Focused regression checks passed (`23 passed`), but the first reproducible-image rebuild failed during GitHub `git fetch` with `curl 55`/RPC disconnect; switched the pinned-source acquisition to retrying codeload tarball download.
+- Rebuilt image verified the pinned upstream binary and exact GCC/kernel release, then a standard `KpatchBuilder` run stopped immediately because upstream `kpatch-build` also requires its `/usr/local/share/kpatch/patch` data templates. Added upstream `kmod install` from the same commit to provide that runtime data.
+- After templates were installed, `build_r8_reproducible` compiled original objects but failed on bind-mounted source-tree `vmlinux`/`scripts/link-vmlinux.sh` permission labels during kpatch backup/rebuild handling. Added `VMLINUX_PATH` and `KERNEL_DEVEL_PATH` inputs so strict acceptance can use the immutable extracted debuginfo `vmlinux` rather than mutable source output.
+- Ran `build_r9_external_vmlinux` with the fixed image, extracted official debuginfo `vmlinux`, exact GCC/release, and a one-run label-disabled build mount: `kpatch-build` completed both builds, ELF extraction, and module generation successfully.
+- Standard module artifact is `acceptance_vm_20260525/build_r9_external_vmlinux/CVE-2026-43284/artifacts/livepatch.ko` with SHA-256 `aed23447558e81b40eeb2b9c4d956377573e44745d26d019ec237835d2fa8c15`; `modinfo` confirms target vermagic and module name `livepatch_original`.
+- Runtime acceptance is now waiting only on explicit authorized VM inputs: current environment has neither `VM_HOST` nor `VM_POC`, so no `scp`, `insmod`, `rmmod`, `dmesg`, or PoC operation was run for the new module.
+- User supplied authorized VM runtime target `kxr@10.99.2.182`, confirmed it should run `6.6.102-5.2.an23.x86_64` with passwordless `sudo -n`, and scoped this pass to transfer/load/sysfs/dmesg/unload checks without PoC.
+- VM password fallback succeeds after the local available SSH keys were rejected. Read-only preflight confirms `uname -r=6.6.102-5.2.an23.x86_64` and `sudo -n true` succeeds.
+- Preflight stopped before `scp`/`insmod`: `/sys/kernel/livepatch/livepatch_original` was already present with `enabled=1` and `transition=0`, `lsmod` lists the module, and `/tmp/livepatch.ko` is absent. A clean validation cannot proceed without authorization to unload the pre-existing active patch first.
+- After the user reported `sudo modinfo livepatch_original` as not found, repeated password-authenticated preflight: target kernel and sudo still pass; `modinfo_by_name=not_found` is true, but sysfs remains present with `enabled=1`, `transition=0`, and `lsmod` still lists `livepatch_original`. No transfer/load/unload or PoC was performed.
+- User explicitly authorized unloading the pre-existing active `livepatch_original` as historical test residue and continuing a clean transfer/load/sysfs/dmesg/unload acceptance pass; PoC remains out of scope.
+- Direct removal of the enabled historical residue returned `Module livepatch_original is in use`; disabled it through livepatch sysfs, observed unpatching completion, and then removed it successfully.
+- Uploaded candidate `livepatch.ko` to the VM, confirmed identical SHA-256 plus matching module name/vermagic, and loaded it successfully. Sysfs showed `enabled=1` and `transition=0`; kernel log recorded patching completion.
+- Completed final unload with the correct disable/wait/`rmmod` sequence; `/sys/kernel/livepatch/livepatch_original` and its `lsmod` entry are absent afterward. No PoC was executed. Evidence saved under `acceptance_vm_20260525/runtime_r10_vm_load/`.
+- Fixed `Verifier` to disable a visible loaded livepatch and wait for transition completion before invoking `rmmod`; updated regression coverage for the required remote command order.

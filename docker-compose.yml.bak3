@@ -1,0 +1,60 @@
+services:
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app:z
+      - ./kernel-src:/kernel-src:z
+    working_dir: /app
+    environment:
+      - KERNEL_SRC=/kernel-src/linux-6.6.102-5.2.an23.x86_64
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+    command: ["test"]
+
+  agent-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app:z
+      - ./kernel-src:/kernel-src:z
+    working_dir: /app
+    environment:
+      - KERNEL_SRC=/kernel-src/linux-6.6.102-5.2.an23.x86_64
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+    stdin_open: true
+    tty: true
+    command: ["shell"]
+
+  agent-run:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app:z
+      - ./kernel-src:/kernel-src:z
+      - agent-output:/tmp/test_workspace
+    working_dir: /app
+    environment:
+      - KERNEL_SRC=/kernel-src/linux-6.6.102-5.2.an23.x86_64
+      - WORKDIR=/tmp/test_workspace
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+    command: ["run"]
+
+  agent-run-no-llm:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app:z
+      - ./kernel-src:/kernel-src:z
+      - agent-output:/tmp/test_workspace
+    working_dir: /app
+    environment:
+      - KERNEL_SRC=/kernel-src/linux-6.6.102-5.2.an23.x86_64
+      - WORKDIR=/tmp/test_workspace
+    command: ["run-no-llm"]
+
+volumes:
+  agent-output:

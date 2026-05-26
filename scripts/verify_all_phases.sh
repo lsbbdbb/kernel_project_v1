@@ -197,7 +197,7 @@ check "_extract_diff_from_response method exists" \
 check "_git_apply_check method exists" \
     python -c "from agent.tools.rewrite_advisor import RewriteAdvisor; assert hasattr(RewriteAdvisor, '_git_apply_check')"
 
-check "apply_rewrite handles LLM unavailable gracefully" \
+check "apply_rewrite refuses unvalidated rule fallback without target source" \
     python -c "
 import tempfile, os, json
 from agent.tools.rewrite_advisor import RewriteAdvisor
@@ -208,8 +208,7 @@ with open(os.path.join(d, 'CVE-X', 'patches', 'original.patch'), 'w') as f:
 r = RewriteAdvisor(d, 'CVE-X', llm_client=None)
 plan = {'decision': 'rewrite', 'strategy': 'context_drift'}
 result = r.apply_rewrite(os.path.join(d, 'CVE-X', 'patches', 'original.patch'), plan, None, 1)
-assert result['success'] == True
-assert result['rewrite_source'] == 'rule'
+assert result['success'] == False
 "
 
 check "apply_rewrite with plan decision=manual_required returns failure" \
