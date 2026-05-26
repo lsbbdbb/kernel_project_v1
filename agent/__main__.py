@@ -71,13 +71,31 @@ def _target_source_dir(workdir: str, kernel_version: str) -> str:
     if env_source:
         return env_source
 
+    # 1. Standard kernel-src/ layout (matches the Docker volume mount)
     kernel_root = os.path.join(os.path.dirname(workdir), "kernel-src")
     exact = os.path.join(kernel_root, "linux-" + kernel_version)
     if os.path.isdir(exact):
         return exact
 
-    # Backward-compatible fallback for older workdirs/scripts that omitted arch.
+    # 2. Fallback without .x86_64 suffix (older workdirs/scripts)
     stripped = os.path.join(kernel_root, "linux-" + kernel_version.replace(".x86_64", ""))
+    if os.path.isdir(stripped):
+        return stripped
+
+    # 3. acceptance_vm source tree (host-side fallback)
+    #    Docker compose maps this to /kernel-src/, but on host it's here.
+    project_root = os.path.dirname(workdir) if workdir else "."
+    for candidate_dir in ["acceptance_vm_20260525", "build_r9_external_vmlinux",
+                          "build_r10_vm_load"]:
+        tree = os.path.join(project_root, candidate_dir, "source_tree",
+                            "linux-" + kernel_version.replace(".x86_64", ""))
+        if os.path.isdir(tree):
+            return tree
+        tree2 = os.path.join(project_root, candidate_dir, "source_tree",
+                             "linux-" + kernel_version)
+        if os.path.isdir(tree2):
+            return tree2
+
     return stripped
 
 
