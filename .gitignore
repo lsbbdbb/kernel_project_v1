@@ -15,6 +15,9 @@ run_*/
 run_acceptance_*/
 # kpatch build cache
 .kpatch/
+# Windows path garbage (accidentally committed from dev machine)
+E:/
+
 # IDE
 .idea/
 .vscode/
