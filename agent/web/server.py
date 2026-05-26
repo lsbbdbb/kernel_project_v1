@@ -49,7 +49,8 @@ def _find_latest_workdir() -> Optional[str]:
 
     candidates = sorted(
         [d for d in os.listdir(".") if (
-            d.startswith("run_") and os.path.isdir(d)
+            (d.startswith("docker_") or d.startswith("run_"))
+            and os.path.isdir(d)
         )],
         key=lambda d: os.path.getmtime(d),
         reverse=True,
