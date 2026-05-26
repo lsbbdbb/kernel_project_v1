@@ -332,3 +332,57 @@ class TestWebApi:
         with urllib.request.urlopen(req, timeout=10) as resp:
             html = resp.read().decode()
             assert "前置检测" in html
+
+    # ------------------------------------------------------------------
+    # Trace / Pipeline chain tests
+    # ------------------------------------------------------------------
+
+    def test_trace_endpoint_structure(self):
+        """GET /api/cve/<id>/trace returns structured pipeline trace."""
+        cves = _get("/api/cves")
+        if not cves:
+            return
+        trace = _get(f"/api/cve/{cves[0]['cve_id']}/trace")
+        assert "cve_id" in trace
+        assert "timeline" in trace
+        assert "stages" in trace
+        assert "rag_traces" in trace
+        assert "rag_query_count" in trace
+        assert "attempts" in trace
+        assert isinstance(trace["timeline"], list)
+        assert isinstance(trace["rag_traces"], list)
+
+    def test_trace_timeline_entries(self):
+        """Each timeline entry has required fields."""
+        cves = _get("/api/cves")
+        if not cves:
+            return
+        trace = _get(f"/api/cve/{cves[0]['cve_id']}/trace")
+        for entry in trace["timeline"]:
+            assert "from" in entry
+            assert "to" in entry
+            assert "reason" in entry
+            assert "timestamp" in entry
+            assert "type" in entry
+            assert "order" in entry
+
+    def test_trace_unknown_cve(self):
+        """GET /api/cve/<unknown>/trace returns 404."""
+        _get("/api/cve/CVE-9999-99999/trace", expect_status=404)
+
+    def test_trace_html_has_trace_tab(self):
+        """The index page has the trace tab."""
+        url = f"{BASE_URL}/"
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            html = resp.read().decode()
+            assert "链路" in html
+
+    def test_trace_html_has_trace_js(self):
+        """The index page has trace JavaScript functions."""
+        url = f"{BASE_URL}/"
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            html = resp.read().decode()
+            assert "loadTraceForCve" in html
+            assert "populateTraceSelector" in html

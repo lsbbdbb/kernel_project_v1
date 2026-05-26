@@ -287,6 +287,36 @@ class RewriteAdvisor:
 
         return self._extract_diff_from_response(response)
 
+    def _log_rag_trace(self, query: str, chunks: list, source: str):
+        """Persist RAG query and results to rag_trace.json."""
+        trace_path = os.path.join(self.workdir, self.cve_id, "rag_trace.json")
+        traces = []
+        if os.path.exists(trace_path):
+            try:
+                with open(trace_path) as f:
+                    traces = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                traces = []
+        traces.append({
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "query": query,
+            "source": source,
+            "result_count": len(chunks),
+            "results": [
+                {
+                    "chunk_id": c.id,
+                    "type": c.metadata.get("type", ""),
+                    "title": c.metadata.get("title", c.id),
+                    "tags": c.metadata.get("tags", []),
+                    "snippet": c.content[:200],
+                }
+                for c in chunks
+            ],
+        })
+        os.makedirs(os.path.dirname(trace_path), exist_ok=True)
+        with open(trace_path, "w") as f:
+            json.dump(traces, f, indent=2, ensure_ascii=False)
+
     def _build_rag_context(self, failure: Dict, units: Dict) -> str:
         """Build a context string from RAG knowledge chunks."""
         if not self.retriever:
@@ -305,6 +335,8 @@ class RewriteAdvisor:
             chunks = self.retriever.retrieve(query, top_k=3)
         except Exception:
             return ""
+
+        self._log_rag_trace(query, chunks, source="llm_rewrite")
 
         if not chunks:
             return ""
@@ -402,6 +434,9 @@ class RewriteAdvisor:
             chunks = self.retriever.retrieve(query, top_k=2)
         except Exception:
             return ""
+
+        self._log_rag_trace(query, chunks, source="rule_rewrite")
+
         if not chunks:
             return ""
         lines = []
