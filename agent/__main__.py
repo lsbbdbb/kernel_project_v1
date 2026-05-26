@@ -894,7 +894,7 @@ def main():
     print("Agent run complete.")
 
     # Generate organized out/ folder
-    out_dir = os.path.join(os.path.dirname(workdir), "out")
+    out_dir = os.path.join(workdir, "out")
     _generate_out_folder(workdir, out_dir, cve_ids, summary)
 
 
