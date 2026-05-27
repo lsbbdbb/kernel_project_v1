@@ -16,6 +16,7 @@ from typing import Dict, List, Tuple
 TESTDATA_DIR = os.path.join(os.path.dirname(__file__), "..", "testdata", "acceptance")
 PATCHES_DIR = os.path.join(TESTDATA_DIR, "patches")
 BUILD_LOGS_DIR = os.path.join(TESTDATA_DIR, "build_logs")
+VERIFY_LOGS_DIR = os.path.join(TESTDATA_DIR, "verify_logs")
 METADATA_DIR = os.path.join(TESTDATA_DIR, "metadata")
 EXPECTED_DIR = os.path.join(TESTDATA_DIR, "expected")
 ARTIFACTS_DIR = os.path.join(TESTDATA_DIR, "artifacts"  )

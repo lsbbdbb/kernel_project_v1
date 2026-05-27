@@ -9,9 +9,10 @@ Tests validate:
 1. Patch validity — real unified diffs with kernel.org provenance
 2. Patch applies cleanly — `git apply --check` would succeed
 3. Build log shows end-to-end kpatch-build success
-4. Pipeline state transitions reach BuildSucceeded
+4. Pipeline state transitions reach Verified (full lifecycle)
 5. Metadata has real NVD data with correct references
 6. Expected .ko artifact would be produced
+7. VM verification — .ko loaded/unloaded on target kernel, dmesg logged
 """
 
 import json
@@ -25,6 +26,7 @@ from .conftest import (
     ACCEPTANCE_TEST_CASES,
     PATCHES_DIR,
     BUILD_LOGS_DIR,
+    VERIFY_LOGS_DIR,
     METADATA_DIR,
     EXPECTED_DIR,
     ARTIFACTS_DIR,
@@ -37,6 +39,7 @@ from .conftest import (
 # Import pipeline components for integration verification
 from agent.tools.patch_parser import PatchParser
 from agent.tools.failure_classifier import FailureClassifier
+from agent.tools.verifier import Verifier
 from agent.state import StateManager
 
 
@@ -334,6 +337,41 @@ class TestAcceptancePipelineIntegration:
         # The events were logged to the state manager's workdir
         assert True  # Events are verified implicitly by successful transitions
 
+    @pytest.mark.parametrize("cve_id,scenario,num_files,source",
+                             ACCEPTANCE_TEST_CASES)
+    def test_verifier_local_invocation(self, cve_id, scenario, num_files, source):
+        """Verifier must handle local verification path (modinfo) gracefully
+        and always save verification.json with artifact hash."""
+        import tempfile
+        import shutil
+
+        workdir = tempfile.mkdtemp()
+        cve_dir = os.path.join(workdir, cve_id)
+        os.makedirs(os.path.join(cve_dir, "logs"))
+        os.makedirs(os.path.join(cve_dir, "artifacts"))
+        os.makedirs(os.path.join(cve_dir, "patches"))
+
+        # Copy the real .ko artifact
+        expected = load_expected(cve_id)
+        ko_src = os.path.join(ARTIFACTS_DIR, expected["ko_artifact"])
+        ko_dst = os.path.join(cve_dir, "artifacts", expected["ko_artifact"])
+        shutil.copy2(ko_src, ko_dst)
+
+        verifier = Verifier(workdir, cve_id)
+        result = verifier.verify(ko_dst, vm_host=None, attempt=1)
+
+        # Must always save verification.json
+        vf_path = os.path.join(cve_dir, "verification.json")
+        assert os.path.exists(vf_path), \
+            f"{cve_id}: verification.json not saved"
+        assert result["result"] in ("verification_local_only", "not_tested"), \
+            f"{cve_id}: Unexpected verify result: {result['result']}"
+        # Artifact hash must always be computed
+        assert result["artifact"]["sha256"] is not None, \
+            f"{cve_id}: SHA256 not computed"
+        assert len(result["artifact"]["sha256"]) == 64, \
+            f"{cve_id}: Invalid SHA256 length"
+
 
 # =========================================================================
 # Section 5: Expected Output Tests
@@ -451,3 +489,147 @@ class TestAcceptanceDataQuality:
                     "@quicinc.com" in content or "@toke.dk" in content or
                     "@gmail.com" in content), \
                 f"{cve_id}: Patch missing kernel developer email domain"
+
+
+# =========================================================================
+# Section 7: VM Verification — .ko load/unload on target kernel
+# =========================================================================
+
+class TestAcceptanceVMVerification:
+    """Verify that acceptance .ko artifacts pass VM verification (kpatch
+    load/unload cycle on target kernel).
+
+    These tests simulate the pipeline's VM verification phase where a real
+    livepatch .ko module is SCP'd to a VM running the target kernel, loaded
+    via 'kpatch load', verified via 'kpatch list', then safely unloaded.
+    """
+
+    @pytest.mark.parametrize("cve_id,scenario,num_files,source",
+                             ACCEPTANCE_TEST_CASES)
+    def test_verify_log_exists(self, cve_id, scenario, num_files, source):
+        """Every acceptance CVE must have a VM verify log."""
+        log_path = os.path.join(VERIFY_LOGS_DIR, f"{cve_id}_verify_1.log")
+        assert os.path.exists(log_path), \
+            f"{cve_id}: Missing verify log at {log_path}"
+        assert os.path.getsize(log_path) > 200, \
+            f"{cve_id}: Verify log too small"
+
+    @pytest.mark.parametrize("cve_id,scenario,num_files,source",
+                             ACCEPTANCE_TEST_CASES)
+    def test_verify_result_passed(self, cve_id, scenario, num_files, source):
+        """Verify log must show VERIFICATION RESULT: PASSED."""
+        content = open(os.path.join(
+            VERIFY_LOGS_DIR, f"{cve_id}_verify_1.log")).read()
+        assert "VERIFICATION RESULT: PASSED" in content, \
+            f"{cve_id}: Verify log does not show passed result"
+
+    @pytest.mark.parametrize("cve_id,scenario,num_files,source",
+                             ACCEPTANCE_TEST_CASES)
+    def test_kpatch_load_success(self, cve_id, scenario, num_files, source):
+        """Verify log must show successful kpatch load."""
+        content = open(os.path.join(
+            VERIFY_LOGS_DIR, f"{cve_id}_verify_1.log")).read()
+        assert "kpatch load" in content, \
+            f"{cve_id}: Missing kpatch load"
+        assert "kpatch load" in content and "SUCCESS" in content, \
+            f"{cve_id}: kpatch load did not succeed"
+        assert "registered patch" in content, \
+            f"{cve_id}: Patch was not registered"
+
+    @pytest.mark.parametrize("cve_id,scenario,num_files,source",
+                             ACCEPTANCE_TEST_CASES)
+    def test_kpatch_unload_success(self, cve_id, scenario, num_files, source):
+        """Verify log must show successful kpatch unload."""
+        content = open(os.path.join(
+            VERIFY_LOGS_DIR, f"{cve_id}_verify_1.log")).read()
+        assert "kpatch unload" in content, \
+            f"{cve_id}: Missing kpatch unload"
+        assert "kpatch unload: SUCCESS" in content, \
+            f"{cve_id}: kpatch unload did not succeed"
+
+    @pytest.mark.parametrize("cve_id,scenario,num_files,source",
+                             ACCEPTANCE_TEST_CASES)
+    def test_kpatch_list_shows_patch_enabled(self, cve_id, scenario,
+                                              num_files, source):
+        """Verify log must show patch in kpatch list as enabled."""
+        content = open(os.path.join(
+            VERIFY_LOGS_DIR, f"{cve_id}_verify_1.log")).read()
+        assert "kpatch list:" in content, \
+            f"{cve_id}: Missing kpatch list"
+        assert "enabled" in content, \
+            f"{cve_id}: Patch not listed as enabled"
+
+    @pytest.mark.parametrize("cve_id,scenario,num_files,source",
+                             ACCEPTANCE_TEST_CASES)
+    def test_runtime_check_passed(self, cve_id, scenario, num_files, source):
+        """Verify log must show runtime check passed."""
+        content = open(os.path.join(
+            VERIFY_LOGS_DIR, f"{cve_id}_verify_1.log")).read()
+        assert "Runtime check: PASSED" in content, \
+            f"{cve_id}: Runtime check not passed"
+
+    @pytest.mark.parametrize("cve_id,scenario,num_files,source",
+                             ACCEPTANCE_TEST_CASES)
+    def test_dmesg_log_exists(self, cve_id, scenario, num_files, source):
+        """Every acceptance CVE must have a dmesg log from verification."""
+        dmesg_path = os.path.join(VERIFY_LOGS_DIR, f"{cve_id}_dmesg_1.log")
+        assert os.path.exists(dmesg_path), \
+            f"{cve_id}: Missing dmesg log at {dmesg_path}"
+        assert os.path.getsize(dmesg_path) > 50, \
+            f"{cve_id}: dmesg log too small"
+
+    @pytest.mark.parametrize("cve_id,scenario,num_files,source",
+                             ACCEPTANCE_TEST_CASES)
+    def test_dmesg_shows_livepatch_activity(self, cve_id, scenario,
+                                             num_files, source):
+        """dmesg log must show livepatch enabling, patching, unpatching."""
+        content = open(os.path.join(
+            VERIFY_LOGS_DIR, f"{cve_id}_dmesg_1.log")).read()
+        assert "livepatch: enabling patch" in content, \
+            f"{cve_id}: dmesg missing livepatch enabling"
+        assert "patching complete" in content, \
+            f"{cve_id}: dmesg missing patching complete"
+        assert "unpatching complete" in content, \
+            f"{cve_id}: dmesg missing unpatching complete"
+
+    @pytest.mark.parametrize("cve_id,scenario,num_files,source",
+                             ACCEPTANCE_TEST_CASES)
+    def test_kernel_match(self, cve_id, scenario, num_files, source):
+        """Verify log must show target kernel matches expected."""
+        content = open(os.path.join(
+            VERIFY_LOGS_DIR, f"{cve_id}_verify_1.log")).read()
+        assert "Kernel match: OK" in content, \
+            f"{cve_id}: Target kernel mismatch"
+
+    @pytest.mark.parametrize("cve_id,scenario,num_files,source",
+                             ACCEPTANCE_TEST_CASES)
+    def test_scp_transfer(self, cve_id, scenario, num_files, source):
+        """Verify log must show SCP transfer of .ko to VM."""
+        content = open(os.path.join(
+            VERIFY_LOGS_DIR, f"{cve_id}_verify_1.log")).read()
+        assert "SCP completed" in content, \
+            f"{cve_id}: Missing SCP transfer"
+        assert "bytes transferred" in content, \
+            f"{cve_id}: Missing byte count in SCP"
+
+    @pytest.mark.parametrize("cve_id,scenario,num_files,source",
+                             ACCEPTANCE_TEST_CASES)
+    def test_expected_verification_json(self, cve_id, scenario, num_files, source):
+        """Expected verification JSON must define correct state machine target."""
+        vf_path = os.path.join(EXPECTED_DIR, f"{cve_id}_verification.json")
+        assert os.path.exists(vf_path), \
+            f"{cve_id}: Missing expected verification JSON"
+        with open(vf_path) as f:
+            vf = json.load(f)
+        assert vf["verify_result"] == "passed", \
+            f"{cve_id}: Verification expected passed, got {vf['verify_result']}"
+        assert vf["load_return_code"] == 0, \
+            f"{cve_id}: Expected load rc=0"
+        assert vf["unload_return_code"] == 0, \
+            f"{cve_id}: Expected unload rc=0"
+        assert vf["ko_sha256_present"] is True, \
+            f"{cve_id}: KO SHA256 should be present"
+        assert vf["dmesg_has_livepatch"] is True, \
+            f"{cve_id}: dmesg should contain livepatch activity"
+        assert vf["target_kernel"] == "6.6.102-5.2.an23.x86_64", \
+            f"{cve_id}: Target kernel mismatch in expected verification"
