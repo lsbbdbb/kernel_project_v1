@@ -12,6 +12,7 @@ import json
 import datetime
 import re
 import subprocess
+import traceback
 
 from typing import Dict, List
 
@@ -500,8 +501,8 @@ def main():
             if not getattr(llm_client, 'ping', lambda: False)():
                 print("LLM client ping failed; continuing in --no-llm mode")
                 llm_client = None
-        except Exception:
-            print("LLM client not available or failed to initialize; running in no-llm mode")
+        except Exception as exc:
+            print(f"LLM client not available or failed to initialize; running in no-llm mode: {exc}")
 
     planner = LLMPlanner(state_mgr, llm_client=llm_client, no_llm=(args.no_llm or llm_client is None))
 
@@ -518,21 +519,33 @@ def main():
     # Process each CVE through the full pipeline
     for cve_id in cve_ids:
         print(f"[Processing] {cve_id}")
-        process_cve(cve_id, workdir, state_mgr, planner, cve_ids)
+        try:
+            process_cve(cve_id, workdir, state_mgr, planner, cve_ids)
+        except Exception as exc:
+            print(f"  [{cve_id}] Pipeline crashed: {exc}")
+            try:
+                state_mgr.set_error(cve_id, str(exc))
+                state_mgr.set_final_status(cve_id, "failed")
+            except Exception:
+                pass  # best-effort error recording
         final_state = state_mgr.get_state(cve_id)
         print(f"[Done] {cve_id}: state={final_state.get('state')}, "
               f"status={final_state.get('status')}\n")
 
-    # Generate batch summary
+    # Generate batch summary (best-effort — never crash the run)
     print("Generating batch summary...")
-    reporter = Reporter(workdir, "")
-    summary = reporter.generate_summary(cve_ids)
-    print(f"  Total: {summary['total_cves']} CVE(s)")
-    print(f"  Success: {summary['results']['success']}")
-    print(f"  Failed: {summary['results']['failed']}")
-    print(f"  Manual: {summary['results']['manual_required']}")
-    print(f"  Skipped: {summary['results']['skipped']}")
-    print(f"\nSummary written to: {os.path.join(workdir, 'summary.json')}")
+    try:
+        reporter = Reporter(workdir, "")
+        summary = reporter.generate_summary(cve_ids)
+        print(f"  Total: {summary['total_cves']} CVE(s)")
+        print(f"  Success: {summary['results']['success']}")
+        print(f"  Failed: {summary['results']['failed']}")
+        print(f"  Manual: {summary['results']['manual_required']}")
+        print(f"  Skipped: {summary['results']['skipped']}")
+        print(f"\nSummary written to: {os.path.join(workdir, 'summary.json')}")
+    except Exception as exc:
+        print(f"Batch summary generation failed: {exc}")
+        traceback.print_exc()
     print("Agent run complete.")
 
 
