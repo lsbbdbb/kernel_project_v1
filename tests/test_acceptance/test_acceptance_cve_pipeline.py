@@ -381,6 +381,28 @@ class TestAcceptanceExpectedOutput:
         assert os.path.exists(os.path.join(EXPECTED_DIR, f"{cve_id}_success.json")), \
             f"{cve_id}: Missing expected output"
 
+    @pytest.mark.parametrize("cve_id,scenario,num_files,source",
+                             ACCEPTANCE_TEST_CASES)
+    def test_ko_artifact_exists_on_disk(self, cve_id, scenario, num_files, source):
+        """Expected .ko file must exist in artifacts dir with correct size."""
+        expected = load_expected(cve_id)
+        ko_path = os.path.join(ARTIFACTS_DIR, expected["ko_artifact"])
+        assert os.path.exists(ko_path), \
+            f"{cve_id}: .ko artifact not found at {ko_path}"
+        assert os.path.getsize(ko_path) == expected["ko_size_bytes"], \
+            f"{cve_id}: Expected {expected['ko_size_bytes']} bytes, got {os.path.getsize(ko_path)}"
+
+    @pytest.mark.parametrize("cve_id,scenario,num_files,source",
+                             ACCEPTANCE_TEST_CASES)
+    def test_ko_artifact_is_valid_elf(self, cve_id, scenario, num_files, source):
+        """.ko file must have a valid ELF header (real kpatch .ko output)."""
+        expected = load_expected(cve_id)
+        ko_path = os.path.join(ARTIFACTS_DIR, expected["ko_artifact"])
+        with open(ko_path, 'rb') as f:
+            magic = f.read(4)
+        assert magic == b'\x7fELF', \
+            f"{cve_id}: .ko file does not start with ELF magic"
+
 
 # =========================================================================
 # Section 6: Data Quality Tests
