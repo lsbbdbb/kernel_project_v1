@@ -7,13 +7,13 @@ from agent.tools.failure_classifier import FailureClassifier
 class TestFailureClassifier:
     def setup_method(self):
         self.tmpdir = tempfile.mkdtemp()
-        os.makedirs(os.path.join(self.tmpdir, "CVE-2026-0001"))
+        os.makedirs(os.path.join(self.tmpdir, "CVE-2025-21638"))
 
     def test_classify_api_mismatch(self):
         log_path = os.path.join(self.tmpdir, "build.log")
         with open(log_path, "w") as f:
             f.write("error: too many arguments to function 'do_something'\n")
-        classifier = FailureClassifier(self.tmpdir, "CVE-2026-0001")
+        classifier = FailureClassifier(self.tmpdir, "CVE-2025-21638")
         failure = classifier.classify(log_path)
         assert failure["category"] == "compile"
         assert failure["reason_code"] == "api_mismatch"
@@ -23,7 +23,7 @@ class TestFailureClassifier:
         log_path = os.path.join(self.tmpdir, "build.log")
         with open(log_path, "w") as f:
             f.write("no fentry call found for function example_check\n")
-        classifier = FailureClassifier(self.tmpdir, "CVE-2026-0001")
+        classifier = FailureClassifier(self.tmpdir, "CVE-2025-21638")
         failure = classifier.classify(log_path)
         assert failure["category"] == "kpatch_limit"
         assert failure["reason_code"] == "no_fentry"
@@ -32,7 +32,7 @@ class TestFailureClassifier:
         log_path = os.path.join(self.tmpdir, "build.log")
         with open(log_path, "w") as f:
             f.write("error: patch failed: net/example.c:100\nhunk FAILED\n")
-        classifier = FailureClassifier(self.tmpdir, "CVE-2026-0001")
+        classifier = FailureClassifier(self.tmpdir, "CVE-2025-21638")
         failure = classifier.classify(log_path)
         assert failure["category"] == "patch_apply"
         assert failure["reason_code"] == "hunk_failed"
@@ -41,7 +41,7 @@ class TestFailureClassifier:
         log_path = os.path.join(self.tmpdir, "build.log")
         with open(log_path, "w") as f:
             f.write("some random build output\n")
-        classifier = FailureClassifier(self.tmpdir, "CVE-2026-0001")
+        classifier = FailureClassifier(self.tmpdir, "CVE-2025-21638")
         failure = classifier.classify(log_path)
         assert failure["reason_code"] == "unrecognized"
 
@@ -49,7 +49,7 @@ class TestFailureClassifier:
         log_path = os.path.join(self.tmpdir, "build.log")
         with open(log_path, "w") as f:
             f.write("error: too many arguments to function\n")
-        classifier = FailureClassifier(self.tmpdir, "CVE-2026-0001")
+        classifier = FailureClassifier(self.tmpdir, "CVE-2025-21638")
         classifier.classify(log_path)
-        failure_path = os.path.join(self.tmpdir, "CVE-2026-0001", "failure.json")
+        failure_path = os.path.join(self.tmpdir, "CVE-2025-21638", "failure.json")
         assert os.path.exists(failure_path)

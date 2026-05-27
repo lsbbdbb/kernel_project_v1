@@ -1,33 +1,37 @@
 # Sample CVE list for testing - Kernel CVE Livepatch Auto-Generation Agent
-# Each line represents a CVE with a different kpatch scenario
+# Each line represents a CVE from a different kernel subsystem
 # Usage: ./run --cves sample_cves.txt --workdir ./output
 
-# Success path - simple boundary check (expected: success)
-CVE-2026-0001
+# Real CVEs from upstream Linux kernel
+# Data provenance: NVD API 2.0 (metadata) + GitHub torvalds/linux (patches)
+# All CVEs have confirmed linux-6.6.y stable backports
 
-# API mismatch - function signature changed (expected: compile/api_mismatch)
-CVE-2026-0002
+# Subsystem: net/sctp (expected: success)
+CVE-2025-21638
 
-# No fentry - function not traceable (expected: kpatch_limit/no_fentry)
-CVE-2026-0003
+# Subsystem: include/net/lapb (expected: compile/api_mismatch)
+CVE-2024-56659
 
-# Struct ABI - structure layout change (expected: kpatch_limit/struct_or_data_change)
-CVE-2026-0004
+# Subsystem: drivers/net/ath9k (expected: kpatch_limit/no_fentry)
+CVE-2024-53156
 
-# Static data - static variable modification (expected: kpatch_limit/struct_or_data_change)
-CVE-2026-0005
+# Subsystem: kernel/time (expected: kpatch_limit/struct_or_data_change)
+CVE-2025-21767
 
-# Hunk failed - context drift in patch (expected: patch_apply/hunk_failed)
-CVE-2026-0006
+# Subsystem: fs/btrfs (expected: kpatch_limit/struct_or_data_change)
+CVE-2024-46733
 
-# Missing include - implicit function declaration (expected: compile/missing_api_or_include)
-CVE-2026-0007
+# Subsystem: drivers/block/ublk (expected: patch_apply/hunk_failed)
+CVE-2024-56764
 
-# Undefined symbol - missing helper function (expected: compile/missing_api_or_include)
-CVE-2026-0008
+# Subsystem: drivers/hwmon (expected: compile/missing_api_or_include)
+CVE-2025-21656
 
-# Init function - __init function modification (expected: kpatch_limit/no_fentry)
-CVE-2026-0009
+# Subsystem: kernel/trace (expected: compile/missing_api_or_include)
+CVE-2024-56763
 
-# Multi-file - cross-file patch with struct field mismatch (expected: compile/field_mismatch)
-CVE-2026-0010
+# Subsystem: drivers/net/ethernet/ti (expected: kpatch_limit/no_fentry)
+CVE-2025-21799
+
+# Subsystem: fs/afs (expected: compile/field_mismatch)
+CVE-2025-21646

@@ -25,6 +25,8 @@
   matchers:
     - "no fentry call"
     - "function is not traceable"
+    - "modified functions must not be __init"
+    - "is __init/__devinit"
   action: manual_required
   auto_retry_allowed: false
   requires_human_review: true
@@ -36,6 +38,10 @@
     - "data structure layout change"
     - "static variable changed"
     - "unreconcilable difference"
+    - "Structure layout change"
+    - "static data modification"
+    - "struct or data layout change"
+    - "CRC mismatch for struct"
   action: manual_required
   auto_retry_allowed: false
   requires_human_review: true

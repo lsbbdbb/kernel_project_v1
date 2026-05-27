@@ -61,14 +61,17 @@ class FailureClassifier:
         {
             "pattern_id": "kpatch.no_fentry", "stage": "build",
             "category": "kpatch_limit", "reason_code": "no_fentry",
-            "matchers": [r"no fentry call", r"function is not traceable"],
+            "matchers": [r"no fentry call", r"function is not traceable",
+                         r"modified functions must not be __init", r"is __init/__devinit"],
             "retryable": False, "next_action": "manual_required",
         },
         {
             "pattern_id": "kpatch.data_change", "stage": "build",
             "category": "kpatch_limit", "reason_code": "struct_or_data_change",
             "matchers": [r"data structure layout change", r"static variable changed",
-                         r"unreconcilable difference", r"section change"],
+                         r"unreconcilable difference", r"section change",
+                         r"Structure layout change", r"static data modification",
+                         r"struct or data layout change", r"CRC mismatch for struct"],
             "retryable": False, "next_action": "manual_required",
         },
         {

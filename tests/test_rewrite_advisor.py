@@ -8,9 +8,9 @@ from agent.tools.rewrite_advisor import RewriteAdvisor
 class TestRewriteAdvisor:
     def setup_method(self):
         self.tmpdir = tempfile.mkdtemp()
-        os.makedirs(os.path.join(self.tmpdir, "CVE-2026-0001", "patches"))
-        self.cve_dir = os.path.join(self.tmpdir, "CVE-2026-0001")
-        self.advisor = RewriteAdvisor(self.tmpdir, "CVE-2026-0001")
+        os.makedirs(os.path.join(self.tmpdir, "CVE-2025-21638", "patches"))
+        self.cve_dir = os.path.join(self.tmpdir, "CVE-2025-21638")
+        self.advisor = RewriteAdvisor(self.tmpdir, "CVE-2025-21638")
 
     def test_rewrite_plan_api_mismatch(self):
         failure = {

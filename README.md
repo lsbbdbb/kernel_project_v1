@@ -322,11 +322,11 @@ RAG 数据库建议采用“结构化索引 + 向量索引 + 原文证据”的�
 
 ```json
 {
-  "chunk_id": "log:CVE-2026-0001:build_2:compile:001",
+  "chunk_id": "log:CVE-2025-21638:build_2:compile:001",
   "source_type": "log",
   "text": "error: too few arguments to function example_check",
   "metadata": {
-    "cve_id": "CVE-2026-0001",
+    "cve_id": "CVE-2025-21638",
     "kernel_version": "6.6.102-5.2.an23.x86_64",
     "stage": "build",
     "failure_category": "compile",
@@ -1073,7 +1073,7 @@ flowchart LR
 
 ```json
 {
-  "cve_id": "CVE-2026-0001",
+  "cve_id": "CVE-2025-21638",
   "kernel_version": "6.6.102-5.2.an23.x86_64",
   "fix_intent": {
     "summary": "为边界检查缺失问题增加长度校验并在非法输入时返回错误",
@@ -1292,11 +1292,11 @@ RAG 出库要有引用约束。Planner 给 LLM 的 evidence pack 不能只包含
 
 ```json
 {
-  "query_id": "rewrite:CVE-2026-0001:attempt_2",
+  "query_id": "rewrite:CVE-2025-21638:attempt_2",
   "purpose": "explain_build_failure_and_propose_rewrite",
   "items": [
     {
-      "chunk_id": "log:CVE-2026-0001:build_2:compile:001",
+      "chunk_id": "log:CVE-2025-21638:build_2:compile:001",
       "source_type": "log",
       "evidence_path": "logs/build_2.log",
       "matched_by": ["reason_code", "function_name"],
@@ -1398,7 +1398,7 @@ Agent 记忆不能等同于对话历史。本项目的记忆应落到文件和�
     "function_name": "example_check",
     "log_patterns": ["too many arguments to function"]
   },
-  "observed_in": ["CVE-2026-0001"],
+  "observed_in": ["CVE-2025-21638"],
   "recommended_action": "rewrite",
   "confidence": "confirmed_by_build"
 }
@@ -1417,8 +1417,8 @@ Agent 记忆不能等同于对话历史。本项目的记忆应落到文件和�
   ],
   "rewrite_action": "按目标函数签名重建调用，保留边界检查和错误返回路径",
   "validated_by": {
-    "cve_id": "CVE-2026-0001",
-    "report": "cases/success/CVE-2026-0001/report.json"
+    "cve_id": "CVE-2025-21638",
+    "report": "cases/success/CVE-2025-21638/report.json"
   },
   "not_applicable_when": [
     "缺失参数影响锁、引用计数或内存生命周期",
@@ -1981,11 +1981,11 @@ kpatch unload livepatch.ko
 
 ```json
 {
-  "chunk_id": "commit:CVE-2026-0001:abc1234",
+  "chunk_id": "commit:CVE-2025-21638:abc1234",
   "source_type": "commit",
   "text": "commit message 摘要，说明修复的边界检查和受影响路径",
   "metadata": {
-    "cve_id": "CVE-2026-0001",
+    "cve_id": "CVE-2025-21638",
     "commit_id": "abc1234",
     "file_path": "net/example.c",
     "function_name": "example_check",
@@ -2023,8 +2023,8 @@ kpatch unload livepatch.ko
   ],
   "rewrite_action": "按目标函数签名重建调用，保留新增边界检查和错误返回路径",
   "validated_by": {
-    "cve_id": "CVE-2026-0001",
-    "report": "cases/success/CVE-2026-0001/report.json"
+    "cve_id": "CVE-2025-21638",
+    "report": "cases/success/CVE-2025-21638/report.json"
   }
 }
 ```

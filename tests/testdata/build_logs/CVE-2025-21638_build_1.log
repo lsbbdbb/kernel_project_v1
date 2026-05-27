@@ -1,0 +1,17 @@
+kpatch-build: building livepatch for CVE-2025-21638
+Patch: CVE-2025-21638_sctp_sysctl_auth_enable_avoid_using_c.patch
+Applying patch...
+git apply --check: OK
+git apply: OK
+Patch applied cleanly
+Building original kernel...
+make -j8
+Build original: OK
+Building patched kernel...
+make -j8
+Build patched: OK
+Extracting changed objects...
+Changed obj: net/sctp/sysctl.o
+Creating kpatch module...
+kpatch: created /root/kpatch-build/CVE-2025-21638.ko
+SUCCESS: kpatch module generated at /root/kpatch-build/CVE-2025-21638.ko

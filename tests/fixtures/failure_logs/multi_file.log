@@ -1,0 +1,12 @@
+kpatch-build: building livepatch for CVE-2025-21646
+Patch: CVE-2025-21646_afs_fix_the_maximum_cell_name_length.patch
+Applying patch...
+git apply --check: OK
+git apply: OK
+Patch applied cleanly
+Building patched kernel...
+make -j8
+fs/afs/afs.h:302: error: 'struct afs_cell' has no member named 'unknown_field'
+make: *** [scripts/Makefile.build:244: fs/afs/afs.h] Error 1
+build failed in fs/afs/afs_vl.h: similar error
+kpatch-build: compilation FAILED

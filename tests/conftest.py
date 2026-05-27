@@ -31,33 +31,28 @@ EXPECTED_DIR = os.path.join(TESTDATA_DIR, "expected")
 # ---------------------------------------------------------------------------
 # Each entry: (cve_id, scenario, expected_category, expected_reason_code, expected_retryable)
 CVE_TEST_CASES: List[Tuple[str, str, str, str, bool]] = [
-    ("CVE-2026-0001", "boundary_check",       "success",     "",                    True),
-    ("CVE-2026-0002", "api_mismatch",          "compile",     "api_mismatch",        True),
-    ("CVE-2026-0003", "no_fentry",             "kpatch_limit", "no_fentry",          False),
-    ("CVE-2026-0004", "struct_abi",            "kpatch_limit", "struct_or_data_change", False),
-    ("CVE-2026-0005", "static_data",           "kpatch_limit", "struct_or_data_change", False),
-    ("CVE-2026-0006", "hunk_failed",           "patch_apply", "hunk_failed",         True),
-    ("CVE-2026-0007", "missing_include",       "compile",     "missing_api_or_include", True),
-    ("CVE-2026-0008", "undefined_symbol",      "compile",     "missing_api_or_include", True),
-    ("CVE-2026-0009", "init_function",         "kpatch_limit", "no_fentry",          False),
-    ("CVE-2026-0010", "multi_file",            "compile",     "field_mismatch",      False),
+    # 10 real CVEs from upstream Linux kernel (NVD API 2.0 + GitHub torvalds/linux)
+    ("CVE-2025-21638", "success",           "success",     "",                    True),
+    ("CVE-2024-56659", "api_mismatch",      "compile",     "api_mismatch",        True),
+    ("CVE-2024-53156", "no_fentry",         "kpatch_limit", "no_fentry",          False),
+    ("CVE-2025-21767", "struct_abi",        "kpatch_limit", "struct_or_data_change", False),
+    ("CVE-2024-46733", "static_data",       "kpatch_limit", "struct_or_data_change", False),
+    ("CVE-2024-56764", "hunk_failed",       "patch_apply", "hunk_failed",         True),
+    ("CVE-2025-21656", "missing_include",   "compile",     "missing_api_or_include", True),
+    ("CVE-2024-56763", "undefined_symbol",  "compile",     "missing_api_or_include", True),
+    ("CVE-2025-21799", "init_function",     "kpatch_limit", "no_fentry",          False),
+    ("CVE-2025-21646", "multi_file",        "compile",     "field_mismatch",      False),
 ]
 
 
 def get_patch_path(cve_id: str) -> str:
     """Get the path to a CVE patch file."""
-    # Look up the scenario from the CVE id
-    scenario = None
-    for cve, scenario_name, _, _, _ in CVE_TEST_CASES:
-        if cve == cve_id:
-            scenario = scenario_name
-            break
-    if not scenario:
-        raise ValueError(f"Unknown CVE: {cve_id}")
-    patch_path = os.path.join(PATCHES_DIR, f"{cve_id}_{scenario}.patch")
-    if not os.path.exists(patch_path):
-        raise FileNotFoundError(f"Patch not found: {patch_path}")
-    return patch_path
+    # Search for any patch file starting with the CVE ID
+    import glob
+    matches = glob.glob(os.path.join(PATCHES_DIR, f"{cve_id}_*.patch"))
+    if matches:
+        return matches[0]
+    raise FileNotFoundError(f"Patch not found for {cve_id} in {PATCHES_DIR}")
 
 
 def get_build_log_path(cve_id: str, attempt: int = 1) -> str:
@@ -154,7 +149,7 @@ def cve_workdir(request) -> str:
     
     Usage: pass cve_id via request.param or use the parametrize marker.
     """
-    cve_id = getattr(request, "param", "CVE-2026-0001")
+    cve_id = getattr(request, "param", CVE_TEST_CASES[0][0])
     return create_cve_workdir(cve_id)
 
 

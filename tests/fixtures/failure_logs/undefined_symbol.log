@@ -1,0 +1,12 @@
+kpatch-build: building livepatch for CVE-2024-56763
+Patch: CVE-2024-56763_tracing_prevent_bad_count_for_tracing_c.patch
+Applying patch...
+git apply --check: OK
+git apply: OK
+Patch applied cleanly
+Building patched kernel...
+make -j8
+kernel/trace/trace.c:5331: error: implicit declaration of function 'tracing_cpumask_write'
+kernel/trace/trace.c:5331: undefined reference to 'tracing_cpumask_write'
+make: *** [scripts/Makefile.build:244: kernel/trace/trace.c] Error 1
+kpatch-build: compilation FAILED
