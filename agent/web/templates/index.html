@@ -2,1554 +2,933 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Kernel Livepatch Agent — 控制面板</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Kernel Livepatch Agent</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-/* ===== Reset & Base ===== */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-:root {
-  /* "Nocturnal Mineral" — deep warm charcoal, amber-gold, jade accents */
-  color-scheme: dark;
-  --font-display: 'Sora', 'Plus Jakarta Sans', sans-serif;
-  --font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
-  --bg: #181822;
-  --surface: #1e1e2a;
-  --surface2: #262634;
-  --surface-hover: #323244;
-  --border: #323248;
-  --text: #e8e4de;
-  --text-dim: #9490a8;
-  --text-dimmer: #64607a;
-  --accent: #d4a65a;
-  --accent-dim: rgba(212, 166, 90, 0.12);
-  --accent2: #6aaa7a;
-  --accent2-dim: rgba(106, 170, 122, 0.10);
-  --green: #66bb7a;
-  --green-dim: rgba(102, 187, 122, 0.10);
-  --yellow: #d4a84a;
-  --yellow-dim: rgba(212, 168, 74, 0.10);
-  --red: #d46a6a;
-  --red-dim: rgba(212, 106, 106, 0.10);
-  --orange: #d08a4a;
-  --purple: #9a8acc;
-  --purple-dim: rgba(154, 138, 204, 0.10);
-  --pipeline-h: 80px;
-  --radius: 12px;
-  --radius-sm: 8px;
-  --radius-xs: 6px;
-  --shadow: 0 1px 3px rgba(0,0,0,0.35), 0 1px 2px rgba(0,0,0,0.25);
-  --shadow-md: 0 6px 20px rgba(0,0,0,0.35);
-  --shadow-lg: 0 12px 48px rgba(0,0,0,0.4);
-  --glass-bg: rgba(30, 30, 42, 0.78);
-  --glass-border: rgba(50, 50, 72, 0.50);
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  color-scheme:dark;
+  --bg:#181822;--surface:#1e1e2a;--surface2:#262634;--surface3:#323244;
+  --border:#323248;--text:#e8e4de;--text-dim:#9490a8;--text-dimmer:#64607a;
+  --accent:#d4a65a;--accent2:#6aaa7a;
+  --green:#66bb7a;--green-dim:rgba(102,187,122,.12);
+  --red:#d46a6a;--red-dim:rgba(212,106,106,.12);
+  --orange:#d08a4a;--orange-dim:rgba(208,138,74,.12);
+  --yellow:#d4a84a;--yellow-dim:rgba(212,168,74,.10);
+  --purple:#9a8acc;--purple-dim:rgba(154,138,204,.12);
+  --radius:12px;--radius-sm:8px;--radius-xs:6px;
+  --font:'Inter','Plus Jakarta Sans',system-ui,sans-serif;
+  --mono:'JetBrains Mono','SF Mono',Consolas,monospace;
+  --shadow:0 1px 4px rgba(0,0,0,.35);--shadow-md:0 6px 20px rgba(0,0,0,.35);--shadow-lg:0 12px 48px rgba(0,0,0,.4);
 }
-[data-theme="light"] {
-  color-scheme: light;
-  --bg: #e6e0d6;
-  --surface: #eee8de;
-  --surface2: #e6e0d4;
-  --surface-hover: #dcd6ca;
-  --border: #cac4ba;
-  --text: #2a2834;
-  --text-dim: #8a86a0;
-  --text-dimmer: #b0acbc;
-  --accent: #b0883a;
-  --accent-dim: rgba(176, 136, 58, 0.08);
-  --accent2: #5a8a6a;
-  --accent2-dim: rgba(90, 138, 106, 0.08);
-  --green: #4a9a5a;
-  --green-dim: rgba(74, 154, 90, 0.08);
-  --yellow: #b8983a;
-  --yellow-dim: rgba(184, 152, 58, 0.08);
-  --red: #b85a5a;
-  --red-dim: rgba(184, 90, 90, 0.08);
-  --orange: #b07a3a;
-  --purple: #8a7ac0;
-  --purple-dim: rgba(138, 122, 192, 0.08);
-  --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-md: 0 6px 20px rgba(0,0,0,0.07);
-  --shadow-lg: 0 12px 48px rgba(0,0,0,0.10);
-  --glass-bg: rgba(238, 232, 222, 0.78);
-  --glass-border: rgba(202, 196, 186, 0.50);
+[data-theme="light"]{
+  color-scheme:light;
+  --bg:#e6e0d6;--surface:#eee8de;--surface2:#e6e0d4;--surface3:#dcd6ca;
+  --border:#cac4ba;--text:#2a2834;--text-dim:#8a86a0;--text-dimmer:#b0acbc;
+  --accent:#d4a65a;--accent2:#6aaa7a;
+  --green:#5a9a6a;--red:#b84a4a;--orange:#b07a3a;--yellow:#b8983a;--purple:#8a7ac0;
+  --shadow:0 1px 3px rgba(0,0,0,.06);--shadow-md:0 4px 16px rgba(0,0,0,.07);--shadow-lg:0 8px 32px rgba(0,0,0,.10);
 }
-.theme-transitioning,
-.theme-transitioning * {
-  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-              background 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-              color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-              border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-              box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-              opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+body{
+  font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;
+  line-height:1.6;-webkit-font-smoothing:antialiased;
+  background-image:radial-gradient(ellipse at 25% 10%,rgba(212,166,90,.06) 0%,transparent 50%),
+    radial-gradient(ellipse at 75% 90%,rgba(106,170,122,.04) 0%,transparent 50%);
 }
-@media (prefers-reduced-motion: reduce) {
-  .theme-transitioning, .theme-transitioning * { transition: none !important; }
+/* ===== Header ===== */
+header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 28px;gap:8px;flex-wrap:wrap;
+  background:rgba(30,30,42,.78);backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50;
 }
-body {
-  font-family: var(--font-body);
-  background: var(--bg);
-  color: var(--text);
-  min-height: 100vh;
-  line-height: 1.7;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background-image:
-    radial-gradient(ellipse at 25% 10%, rgba(212, 166, 90, 0.08) 0%, transparent 50%),
-    radial-gradient(ellipse at 75% 90%, rgba(106, 170, 122, 0.06) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 50%, rgba(154, 138, 204, 0.03) 0%, transparent 60%);
+header::before{content:'';position:absolute;top:0;left:28px;right:28px;height:1px;
+  background:linear-gradient(90deg,transparent,var(--accent) 15%,var(--accent2) 50%,var(--accent) 85%,transparent);opacity:.35}
+.header-left{display:flex;align-items:center;gap:10px}
+.header-left h1{font-size:17px;font-weight:700;letter-spacing:-.4px}
+.header-left h1 .a{color:var(--accent)}
+.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--text-dimmer);flex-shrink:0}
+.status-dot.running{background:var(--green);box-shadow:0 0 8px var(--green)}
+.status-dot.idle{background:var(--yellow)}
+.status-dot.completed{background:var(--accent);box-shadow:0 0 8px var(--accent)}
+.header-right{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.btn{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:7px 14px;border:1px solid var(--border);border-radius:10px;
+  background:var(--surface2);color:var(--text);cursor:pointer;
+  font-size:12px;font-weight:500;transition:all .2s ease;white-space:nowrap;
 }
-/* Subtle mineral-grain texture overlay */
-body::before {
-  content: '';
-  position: fixed; inset: 0; pointer-events: none; z-index: 9998;
-  opacity: 0.18;
-  background-image:
-    repeating-linear-gradient(0deg, transparent, transparent 2px, var(--border) 2px, var(--border) 3px),
-    repeating-linear-gradient(90deg, transparent, transparent 2px, var(--border) 2px, var(--border) 3px);
-  background-size: 48px 48px, 48px 48px;
-  mask-image: radial-gradient(ellipse at 50% 50%, black 30%, transparent 70%);
-  -webkit-mask-image: radial-gradient(ellipse at 50% 50%, black 30%, transparent 70%);
+.btn:hover{background:var(--surface3);border-color:var(--text-dim);transform:translateY(-1px);box-shadow:var(--shadow)}
+.btn-primary{background:linear-gradient(135deg,var(--accent),#c8943a);color:#fff;border-color:transparent;font-weight:600;box-shadow:0 2px 8px rgba(212,166,90,.25)}
+.btn-primary:hover{box-shadow:0 4px 16px rgba(212,166,90,.4);transform:translateY(-2px)}
+.btn-danger{background:linear-gradient(135deg,var(--red),#b84a4a);color:#fff;border-color:transparent}
+.theme-toggle{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:34px;height:34px;border:1px solid var(--border);border-radius:10px;
+  background:var(--surface2);color:var(--text-dim);cursor:pointer;font-size:16px;transition:all .25s ease
 }
-/* Soft noise grain */
-body::after {
-  content: '';
-  position: fixed; inset: 0; pointer-events: none; z-index: 9999;
-  opacity: 0.015;
-  background: repeating-conic-gradient(var(--text) 0%, transparent 0.02%, transparent 50%) 0 0 / 2px 2px;
+.theme-toggle:hover{color:var(--accent);border-color:var(--accent);transform:rotate(-12deg)}
+/* ===== Container ===== */
+.container{max-width:1440px;margin:0 auto;padding:20px 28px}
+/* ===== Stats ===== */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+.stat-card .stat-label{font-size:10px;color:var(--text-dimmer);text-transform:uppercase;letter-spacing:.8px;font-weight:600}
+.stat-card .stat-value{font-size:26px;font-weight:700;margin-top:4px;font-family:var(--font);letter-spacing:-.6px}
+.stat-value.green{color:var(--green)}.stat-value.red{color:var(--red)}.stat-value.yellow{color:var(--yellow)}.stat-value.blue{color:var(--accent2)}
+/* ===== Pipeline 2D Grid ===== */
+.pipeline-section{margin-bottom:16px}
+.pipeline-section h3{font-size:14px;margin-bottom:8px;font-weight:600}
+.pipeline-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:5px}
+.pg-node{
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+  padding:8px 4px;border-radius:8px;text-align:center;font-size:10px;line-height:1.3;font-weight:500;
+  background:var(--surface2);border:1px solid var(--border);color:var(--text-dimmer);
+  transition:all .3s ease;cursor:default;min-height:52px;
 }
-a { color: var(--accent); text-decoration: none; transition: opacity 0.2s ease; }
-a:hover { opacity: .8; }
-
-/* ===== Layout ===== */
-.container { max-width: 1440px; margin: 0 auto; padding: 24px 32px; }
-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 32px; min-height: 60px;
-  background: var(--glass-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-bottom: 1px solid var(--glass-border);
-  flex-wrap: wrap; gap: 6px 10px;
-  position: sticky; top: 0; z-index: 50;
-}
-header::before {
-  content: '';
-  position: absolute; top: 0; left: 32px; right: 32px; height: 1px;
-  background: linear-gradient(90deg, transparent, var(--accent) 15%, var(--accent2) 50%, var(--accent) 85%, transparent);
-  opacity: 0.35;
-}
-.header-left { display: flex; align-items: center; gap: 14px; }
-.header-left h1 {
-  font-size: 17px; font-weight: 700;
-  font-family: var(--font-display);
-  letter-spacing: -0.4px;
-}
-.header-left h1 .hl-accent { color: var(--accent); }
-.status-dot {
-  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
-  background: var(--text-dim); flex-shrink: 0;
-  position: relative;
-}
-.status-dot::after {
-  content: '';
-  position: absolute; inset: -3px;
-  border-radius: 50%;
-  opacity: 0.2;
-}
-.status-dot.running { background: var(--green); box-shadow: 0 0 8px var(--green); }
-.status-dot.running::after { background: var(--green); }
-.status-dot.idle { background: var(--yellow); }
-.status-dot.idle::after { background: var(--yellow); }
-.status-dot.completed { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
-.status-dot.completed::after { background: var(--accent); }
-.status-dot.no_data { background: var(--text-dimmer); }
-.header-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.theme-toggle {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 36px; height: 36px;
-  border: 1px solid var(--glass-border);
-  border-radius: 10px;
-  background: var(--surface2);
-  color: var(--text-dim);
-  cursor: pointer;
-  font-size: 16px;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.theme-toggle:hover {
-  background: var(--surface-hover);
-  color: var(--accent);
-  border-color: var(--accent);
-  transform: rotate(-12deg);
-}
-.btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 7px 16px; border: 1px solid var(--glass-border);
-  border-radius: 10px;
-  background: var(--surface2); color: var(--text); cursor: pointer;
-  font-size: 12px; font-weight: 500;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  letter-spacing: 0.2px;
-}
-.btn:hover {
-  background: var(--surface-hover);
-  border-color: var(--border);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow);
-}
-.btn:active { transform: translateY(0px); box-shadow: none; }
-.btn:disabled { opacity: .35; cursor: not-allowed; transform: none; box-shadow: none; }
-.btn-primary {
-  background: linear-gradient(135deg, var(--accent), #c8943a);
-  color: #fff; border-color: transparent; font-weight: 600;
-  box-shadow: 0 2px 8px rgba(212, 166, 90, 0.25);
-  text-shadow: 0 1px 3px rgba(0,0,0,0.25);
-}
-.btn-primary:hover {
-  border-color: transparent;
-  box-shadow: 0 4px 16px rgba(212, 166, 90, 0.4);
-  transform: translateY(-2px);
-}
-.btn-danger { background: linear-gradient(135deg, var(--red), #b84a4a); color: #fff; border-color: transparent; box-shadow: 0 2px 8px rgba(212, 106, 106, 0.25); text-shadow: 0 1px 3px rgba(0,0,0,0.25); }
-.btn-danger:hover { box-shadow: 0 4px 16px rgba(212, 106, 106, 0.4); transform: translateY(-2px); }
-
+.pg-node .pg-label{font-size:9px;line-height:1.2;opacity:.7}
+.pg-node .pg-count{font-size:12px;font-weight:700;margin-bottom:1px}
+.pg-node.active{background:linear-gradient(135deg,var(--yellow-dim),rgba(212,168,74,.08));border-color:var(--yellow);color:var(--yellow)}
+.pg-node.done{background:linear-gradient(135deg,var(--green-dim),rgba(102,187,122,.08));border-color:var(--green);color:var(--green)}
+.pg-node.failed{background:linear-gradient(135deg,var(--red-dim),rgba(212,106,106,.08));border-color:var(--red);color:var(--red)}
+.pg-node.skipped{background:var(--purple-dim);border-color:var(--purple);color:var(--purple)}
+.pipeline-legend{display:flex;gap:14px;margin-top:8px;font-size:10px;color:var(--text-dim);flex-wrap:wrap}
+.pipeline-legend span{display:flex;align-items:center;gap:4px}
+.pipeline-legend span::before{content:'';width:10px;height:10px;border-radius:3px;display:inline-block}
+.pipeline-legend span:nth-child(1)::before{background:var(--surface2);border:1px solid var(--border)}
+.pipeline-legend span:nth-child(2)::before{background:var(--yellow)}
+.pipeline-legend span:nth-child(3)::before{background:var(--green)}
+.pipeline-legend span:nth-child(4)::before{background:var(--red)}
 /* ===== Tabs ===== */
-.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-top: 24px; padding: 0 4px; }
-.tab {
-  padding: 12px 24px; cursor: pointer; font-size: 13px; font-weight: 500;
-  color: var(--text-dim);
-  background: none; border: none;
-  border-radius: 10px 10px 0 0;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-}
-.tab::after {
-  content: '';
-  position: absolute; left: 50%; bottom: -1px; width: 0; height: 2px;
-  background: var(--accent);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border-radius: 2px 2px 0 0;
-}
-.tab:hover { color: var(--text); background: var(--surface); }
-.tab.active { color: var(--accent); background: var(--surface); }
-.tab.active::after { left: 20%; width: 60%; }
-.tab-content { display: none; padding: 24px 0; }
-.tab-content.active { display: block; animation: fadeSlideIn 0.35s cubic-bezier(0.22, 1, 0.36, 1); }
-@keyframes fadeSlideIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* ===== Pipeline Flow ===== */
-.pipeline-wrapper {
-  overflow-x: auto; padding: 24px 0;
-  border: 1px solid var(--border); border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: inset 0 0 40px rgba(0,0,0,0.15);
-}
-.pipeline-wrapper::-webkit-scrollbar { height: 6px; }
-.pipeline-wrapper::-webkit-scrollbar-track { background: transparent; }
-.pipeline-wrapper::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-.pipeline-wrapper::-webkit-scrollbar-thumb:hover { background: var(--text-dimmer); }
-.pipeline {
-  display: flex; align-items: flex-start; gap: 2px; min-width: max-content;
-  padding: 0 20px;
-}
-.pipeline-node {
-  display: flex; flex-direction: column; align-items: center; gap: 6px;
-  min-width: 88px; max-width: 88px;
-}
-.pipeline-node .node-box {
-  width: 80px; padding: 10px 4px; border-radius: var(--radius-sm);
-  text-align: center; font-size: 9px; line-height: 1.3; font-weight: 600;
-  background: var(--surface2); border: 1px solid var(--border); color: var(--text-dim);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: default;
-  letter-spacing: 0.2px;
-}
-.pipeline-node .node-box.active {
-  background: linear-gradient(135deg, var(--accent-dim), rgba(212, 166, 90, 0.18));
-  color: var(--accent);
-  border-color: var(--accent);
-  animation: glowPulse 2.5s ease-in-out infinite;
-  box-shadow: 0 0 12px rgba(212, 166, 90, 0.12);
-}
-.pipeline-node .node-box.done {
-  background: linear-gradient(135deg, var(--green-dim), rgba(102, 187, 122, 0.14));
-  border-color: var(--green);
-  color: var(--green);
-}
-.pipeline-node .node-box.failed {
-  background: linear-gradient(135deg, var(--red-dim), rgba(212, 106, 106, 0.14));
-  border-color: var(--red);
-  color: var(--red);
-  box-shadow: 0 0 10px var(--red-dim);
-}
-.pipeline-node .node-box.skipped {
-  background: linear-gradient(135deg, var(--yellow-dim), rgba(212, 168, 74, 0.14));
-  border-color: var(--yellow);
-  color: var(--yellow);
-}
-.pipeline-arrow {
-  flex-shrink: 0; font-size: 18px; color: var(--text-dimmer);
-  padding-top: 22px; line-height: 1;
-  opacity: 0.3;
-}
-.pipeline-node .node-label { font-size: 9px; color: var(--text-dimmer); text-align: center; margin-top: 4px; letter-spacing: 0.3px; }
-
-/* ===== Check Results ===== */
-.check-bar {
-  display: flex; align-items: center; gap: 12px; padding: 10px 16px;
-  border-radius: var(--radius-sm); font-size: 12px; margin-bottom: 10px; cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.check-bar:hover { filter: brightness(1.05); }
-.check-bar.all-pass { background: var(--green-dim); border: 1px solid var(--green); color: var(--green); }
-.check-bar.has-errors { background: var(--red-dim); border: 1px solid var(--red); color: var(--red); }
-.check-bar.has-warnings { background: var(--yellow-dim); border: 1px solid var(--yellow); color: var(--yellow); }
-
-/* ===== Stats Cards ===== */
-.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 24px; }
-.stat-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px 18px;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-}
-.stat-card::before {
-  content: '';
-  position: absolute; top: 0; left: 0; right: 0; height: 2px;
-  background: linear-gradient(90deg, var(--border), transparent);
-  opacity: 0.3;
-  transition: opacity 0.3s ease;
-}
-.stat-card:hover {
-  border-color: var(--text-dimmer);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
-}
-.stat-card:hover::before { opacity: 0.6; }
-.stat-card .stat-label { font-size: 10px; color: var(--text-dimmer); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
-.stat-card .stat-value { font-size: 28px; font-weight: 700; margin-top: 6px; font-family: var(--font-display); letter-spacing: -0.8px; line-height: 1.1; }
-.stat-card .stat-value.green { color: var(--green); }
-.stat-card .stat-value.yellow { color: var(--yellow); }
-.stat-card .stat-value.red { color: var(--red); }
-.stat-card .stat-value.blue { color: var(--accent2); }
-
-/* ===== CVE Grid ===== */
-.cve-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
-.cve-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px 18px; cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-}
-.cve-card::before {
-  content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px;
-  border-radius: 0 3px 3px 0;
-  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.cve-card:hover {
-  border-color: var(--accent-dim);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
-}
-.cve-card:hover::before {
-  top: 2px; bottom: 2px;
-}
-.cve-card .cve-header { display: flex; justify-content: space-between; align-items: center; }
-.cve-card .cve-id { font-weight: 600; font-size: 14px; font-family: var(--font-mono); }
-.cve-card .cve-state { font-size: 10px; padding: 3px 10px; border-radius: 20px; font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase; }
-.cve-card.state-running::before { background: var(--green); }
-.cve-card.state-idle::before { background: var(--yellow); }
-.cve-card.state-success::before { background: var(--accent); }
-.cve-card.state-failed::before { background: var(--red); }
-.cve-card.state-manual_required::before { background: var(--orange); }
-.cve-card.state-skipped::before { background: var(--purple); }
-.badge-running { background: var(--green-dim); color: var(--green); }
-.badge-idle { background: var(--yellow-dim); color: var(--yellow); }
-.badge-success { background: var(--green-dim); color: var(--green); }
-.badge-failed { background: var(--red-dim); color: var(--red); }
-.badge-manual { background: linear-gradient(135deg, var(--orange), #b86a3a); color: #fff; }
-.badge-skipped { background: var(--purple-dim); color: var(--purple); }
-.cve-card .cve-detail { margin-top: 10px; font-size: 11px; color: var(--text-dim); }
-.cve-card .cve-detail span { margin-right: 16px; }
-.cve-card .cve-stages {
-  display: block; margin-top: 10px; border-top: 1px solid var(--border);
-  padding-top: 10px; max-height: 300px; overflow-y: auto;
-}
-.cve-stage {
-  display: flex; align-items: center; gap: 8px; padding: 4px 0;
-  font-size: 11px; border-bottom: 1px solid var(--surface-hover);
-  transition: background 0.15s ease;
-}
-.cve-stage:hover { background: var(--surface2); margin: 0 -6px; padding: 4px 6px; border-radius: 4px; }
-.cve-stage:last-child { border-bottom: none; }
-.cve-stage .stage-dot {
-  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
-}
-.stage-dot.ok { background: var(--green); box-shadow: 0 0 4px var(--green); }
-.stage-dot.fail { background: var(--red); box-shadow: 0 0 4px var(--red); }
-.stage-dot.skip { background: var(--text-dimmer); }
-.stage-dot.active { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
-.cve-stage .stage-from { color: var(--text-dimmer); font-size: 10px; min-width: 80px; font-family: var(--font-mono); }
-.cve-stage .stage-arrow { color: var(--text-dimmer); font-size: 10px; }
-.cve-stage .stage-to { font-weight: 500; font-size: 11px; }
-.cve-stage .stage-reason { color: var(--text-dim); font-size: 10px; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100px; }
-
-/* ===== Detail Panel (slide-out) ===== */
-.detail-overlay {
-  display: none; position: fixed; inset: 0;
-  background: rgba(0,0,0,0.55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  z-index: 100;
-}
-.detail-overlay.open { display: block; animation: fadeIn 0.25s ease; }
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-.detail-panel {
-  position: fixed; right: 0; top: 0; bottom: 0; width: 50%; min-width: 420px;
-  max-width: 740px; background: var(--glass-bg);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border-left: 1px solid var(--glass-border);
-  z-index: 101; overflow-y: auto; padding: 28px;
-  transform: translateX(100%);
-  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
-              background-color 0.4s ease, border-color 0.4s ease;
-  box-shadow: var(--shadow-lg);
-}
-.detail-panel.open { transform: translateX(0); }
-.detail-panel .close-btn {
-  float: right; background: none; border: none; color: var(--text-dim);
-  font-size: 28px; cursor: pointer; transition: all 0.2s ease;
-  width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
-  border-radius: 8px;
-}
-.detail-panel .close-btn:hover { color: var(--text); background: var(--surface2); }
-.detail-panel h2 { font-size: 18px; margin-bottom: 20px; font-family: var(--font-display); letter-spacing: -0.3px; }
-.detail-panel h3 { font-size: 11px; margin: 18px 0 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
-.detail-panel .detail-section {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--radius-sm); padding: 14px 16px;
-  margin-bottom: 10px; font-size: 12px; line-height: 1.7;
-}
-.detail-panel pre {
-  background: var(--bg); border-radius: var(--radius-xs); padding: 12px; font-size: 11px;
-  overflow-x: auto; max-height: 300px; color: var(--text);
-  font-family: var(--font-mono); line-height: 1.6;
-  border: 1px solid var(--border);
-}
-.detail-panel .attempt-item {
-  padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 12px;
-  transition: background 0.15s ease;
-}
-.detail-panel .attempt-item:hover { background: var(--surface2); margin: 0 -6px; padding: 10px 6px; border-radius: 6px; }
-.detail-panel .attempt-item:last-child { border-bottom: none; }
-
-/* ===== Log Viewer ===== */
-.log-box {
-  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
-  padding: 14px 16px; font-family: var(--font-mono);
-  font-size: 11px; max-height: 400px; overflow-y: auto;
-  color: var(--text-dim);
-  white-space: pre-wrap; word-break: break-all; margin-top: 10px;
-  line-height: 1.7;
-}
-.log-box::-webkit-scrollbar { width: 6px; }
-.log-box::-webkit-scrollbar-track { background: transparent; }
-.log-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-.log-box::-webkit-scrollbar-thumb:hover { background: var(--text-dimmer); }
-
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:16px;padding:0 4px}
+.tab{padding:10px 20px;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-dim);background:none;border:none;border-bottom:2px solid transparent;transition:all .25s ease;position:relative}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-content{display:none}
+.tab-content.active{display:block;animation:fadeSlideIn .35s ease}
+/* ===== Principles ===== */
+.prin-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:12px;font-size:13px;line-height:1.8}
+.prin-section h3{font-size:15px;margin-bottom:10px;color:var(--accent);font-weight:600}
+.prin-section ul,.prin-section ol{padding-left:20px}
+.prin-section code{background:var(--surface2);padding:2px 8px;border-radius:var(--radius-xs);font-size:12px;font-family:var(--mono);border:1px solid var(--border)}
 /* ===== Environment ===== */
-.env-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
-.env-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; font-size: 12px; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
-.env-item:hover { border-color: var(--text-dimmer); transform: translateY(-1px); box-shadow: var(--shadow); }
-.env-item .env-key { color: var(--text-dimmer); font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; }
-.env-item .env-val { margin-top: 4px; word-break: break-all; }
-
-/* ===== Trace Timeline ===== */
-.trace-timeline { position: relative; padding-left: 32px; }
-.trace-timeline::before {
-  content: ''; position: absolute; left: 11px; top: 6px; bottom: 6px;
-  width: 2px; background: linear-gradient(to bottom, var(--border), var(--accent-dim), var(--border));
-  border-radius: 1px;
+.env-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.env-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;font-size:12px}
+.env-item .env-key{color:var(--text-dimmer);font-size:10px;text-transform:uppercase;letter-spacing:.6px;font-weight:600}
+.env-item .env-val{margin-top:4px;word-break:break-all}
+/* ===== Trace ===== */
+.trace-timeline{position:relative;padding-left:28px}
+.trace-timeline::before{content:'';position:absolute;left:10px;top:6px;bottom:6px;width:2px;background:linear-gradient(to bottom,var(--border),var(--accent-dim),var(--border));border-radius:1px}
+.trace-stage{position:relative;padding:10px 14px;margin-bottom:6px;border-radius:var(--radius-sm);background:var(--surface);border:1px solid var(--border);font-size:12px;transition:all .25s ease}
+.trace-stage::before{content:'';position:absolute;left:-22px;top:14px;width:10px;height:10px;border-radius:50%;background:var(--surface2);border:2px solid var(--border);transition:all .25s ease}
+.trace-stage.transition::before{background:var(--accent2);border-color:var(--accent2);box-shadow:0 0 6px var(--accent2-dim)}
+.trace-stage.classify::before{background:var(--yellow);border-color:var(--yellow);box-shadow:0 0 6px var(--yellow-dim)}
+.trace-stage.rewrite::before{background:var(--purple);border-color:var(--purple);box-shadow:0 0 6px var(--purple-dim)}
+.trace-stage.build_failure::before{background:var(--red);border-color:var(--red);box-shadow:0 0 6px var(--red-dim)}
+.trace-stage:hover{border-color:var(--accent-dim);cursor:pointer}
+.trace-stage .ts-header{display:flex;justify-content:space-between;align-items:center}
+.trace-stage .ts-label{font-weight:600;font-size:12px}
+.trace-stage .ts-detail{display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:11px}
+.trace-stage.open .ts-detail{display:block}
+.trace-stage .ts-badge{font-size:9px;padding:2px 10px;border-radius:20px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.ts-badge.rewrite{background:var(--purple-dim);color:var(--purple)}
+.ts-badge.classify{background:var(--yellow-dim);color:var(--yellow)}
+.ts-badge.build_failure{background:var(--red-dim);color:var(--red)}
+.ts-badge.transition{background:var(--accent2-dim);color:var(--accent2)}
+.trace-stage .ts-reason{color:var(--text-dim);font-size:11px;margin-top:3px}
+.trace-stage .ts-duration{color:var(--text-dimmer);font-size:10px}
+/* ===== CVE Grid ===== */
+.cve-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.cve-header h2{font-size:15px;font-weight:600}
+.cve-header .last-update{font-size:11px;color:var(--text-dimmer)}
+.cve-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px}
+.cve-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:14px 16px;cursor:pointer;
+  transition:all .25s ease;position:relative;overflow:hidden;
 }
-.trace-stage {
-  position: relative; padding: 12px 16px; margin-bottom: 6px;
-  border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--border);
-  font-size: 12px; cursor: pointer; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+.cve-card::before{content:'';position:absolute;left:0;top:6px;bottom:6px;width:3px;border-radius:0 3px 3px 0;transition:all .3s ease}
+.cve-card:hover{border-color:var(--accent-dim);transform:translateY(-1px);box-shadow:var(--shadow-md)}
+.cve-card:hover::before{top:2px;bottom:2px}
+.cve-card.state-success::before{background:var(--green)}
+.cve-card.state-failed::before{background:var(--red)}
+.cve-card.state-manual::before{background:var(--orange)}
+.cve-card.state-skipped::before{background:var(--purple)}
+.cve-card.state-running::before{background:var(--green)}
+.cve-card.state-idle::before{background:var(--yellow)}
+.cve-card .cve-top{display:flex;justify-content:space-between;align-items:center}
+.cve-card .cve-id{font-weight:600;font-size:14px;font-family:var(--mono)}
+.cve-card .cve-state-tag{font-size:10px;padding:2px 10px;border-radius:20px;font-weight:600;white-space:nowrap}
+.tag-running{background:var(--green-dim);color:var(--green)}
+.tag-idle{background:var(--yellow-dim);color:var(--yellow)}
+.tag-success{background:var(--green-dim);color:var(--green)}
+.tag-failed{background:var(--red-dim);color:var(--red)}
+.tag-manual{background:linear-gradient(135deg,var(--orange),#b86a3a);color:#fff}
+.tag-skipped{background:var(--purple-dim);color:var(--purple)}
+.cve-card .cve-meta{font-size:11px;color:var(--text-dim);margin-top:8px;display:flex;gap:12px;flex-wrap:wrap}
+.cve-card .cve-error{font-size:11px;color:var(--red);margin-top:4px}
+.cve-card .cve-stage-bar{display:flex;gap:2px;margin-top:8px;flex-wrap:wrap}
+.cve-card .cve-stage-bar .sd{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.cve-card .cve-stage-bar .sd.ok{background:var(--green)}
+.cve-card .cve-stage-bar .sd.act{background:var(--yellow);box-shadow:0 0 4px var(--yellow);animation:pulse 2s ease-in-out infinite}
+.cve-card .cve-stage-bar .sd.pending{background:var(--text-dimmer);opacity:.3}
+.cve-card .cve-stage-bar .sd.fail{background:var(--red)}
+/* ===== Run Form ===== */
+.run-form{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px}
+.run-form h3{font-size:14px;margin-bottom:10px}
+.run-form .form-row{display:flex;gap:12px;flex-wrap:wrap;align-items:end}
+.run-form label{display:block;font-size:10px;color:var(--text-dimmer);margin-bottom:3px;text-transform:uppercase;letter-spacing:.6px;font-weight:600}
+.run-form input,.run-form select{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;transition:all .2s ease}
+.run-form input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+.run-form .checkbox-row{display:flex;align-items:center;gap:6px}
+/* ===== Detail Panel ===== */
+.detail-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);z-index:100}
+.detail-overlay.open{display:block}
+.detail-panel{
+  position:fixed;right:0;top:0;bottom:0;width:48%;min-width:420px;max-width:740px;
+  background:rgba(30,30,42,.92);backdrop-filter:blur(24px);
+  border-left:1px solid var(--border);
+  z-index:101;overflow-y:auto;
+  transform:translateX(100%);transition:transform .4s cubic-bezier(.22,1,.36,1);
+  box-shadow:var(--shadow-lg);
 }
-.trace-stage:hover { border-color: var(--accent); background: var(--surface2); }
-.trace-stage::before {
-  content: ''; position: absolute; left: -25px; top: 16px;
-  width: 12px; height: 12px; border-radius: 50%; background: var(--surface2);
-  border: 2px solid var(--border);
-  transition: all 0.25s ease;
-}
-.trace-stage.transition::before { background: var(--accent2); border-color: var(--accent2); box-shadow: 0 0 6px var(--accent2-dim); }
-.trace-stage.classify::before { background: var(--yellow); border-color: var(--yellow); box-shadow: 0 0 6px var(--yellow-dim); }
-.trace-stage.rewrite::before { background: var(--purple); border-color: var(--purple); box-shadow: 0 0 6px var(--purple-dim); }
-.trace-stage.build_failure::before { background: var(--red); border-color: var(--red); box-shadow: 0 0 6px var(--red-dim); }
-.trace-stage .ts-header { display: flex; justify-content: space-between; align-items: center; }
-.trace-stage .ts-label { font-weight: 600; font-size: 12px; }
-.trace-stage .ts-badge { font-size: 9px; padding: 2px 10px; border-radius: 20px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-.ts-badge.rewrite { background: var(--purple-dim); color: var(--purple); }
-.ts-badge.classify { background: var(--yellow-dim); color: var(--yellow); }
-.ts-badge.build_failure { background: var(--red-dim); color: var(--red); }
-.ts-badge.transition { background: var(--accent2-dim); color: var(--accent2); }
-.trace-stage .ts-reason { color: var(--text-dim); font-size: 11px; margin-top: 4px; }
-.trace-stage .ts-duration { color: var(--text-dim); font-size: 10px; }
-.trace-stage .ts-detail { display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 11px; }
-.trace-stage.open .ts-detail { display: block; animation: fadeSlideIn 0.2s ease; }
-.trace-stage .ts-detail pre { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-xs); padding: 10px; font-size: 10px; max-height: 150px; overflow: auto; font-family: var(--font-mono); }
-
+.detail-panel.open{transform:translateX(0)}
+.detail-header{display:flex;justify-content:space-between;align-items:center;padding:16px 24px;border-bottom:1px solid var(--border);position:sticky;top:0;background:inherit;z-index:1}
+.detail-header h2{font-size:18px;font-weight:700}
+.close-btn{background:none;border:none;color:var(--text-dim);font-size:28px;cursor:pointer;width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:8px;transition:all .2s ease}
+.close-btn:hover{color:var(--text);background:var(--surface2)}
+.detail-tabs{display:flex;border-bottom:1px solid var(--border);padding:0 16px;position:sticky;top:53px;background:inherit;z-index:1;gap:0}
+.dtab{padding:9px 14px;cursor:pointer;font-size:11px;font-weight:500;color:var(--text-dim);background:none;border:none;border-bottom:2px solid transparent;transition:all .2s ease}
+.dtab:hover{color:var(--text)}
+.dtab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.detail-body{padding:20px 24px}
+.dtab-content{display:none;font-size:13px;line-height:1.7}
+.dtab-content.active{display:block}
+.detail-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:8px;font-size:12px;line-height:1.7}
+.detail-section h4{font-size:10px;color:var(--text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+.detail-panel pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:11px;overflow:auto;max-height:320px;font-family:var(--mono);line-height:1.5;color:var(--text)}
+.failure-card{background:var(--red-dim);border:1px solid var(--red);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:8px;font-size:12px}
+.failure-card.ok{background:var(--green-dim);border-color:var(--green)}
+.file-item{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px}
+.file-item:last-child{border-bottom:none}
+.file-item .fname{font-family:var(--mono);font-size:11px;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis}
+.file-item .fsize{color:var(--text-dimmer);font-size:10px;white-space:nowrap}
+.file-item .fpreview{cursor:pointer;color:var(--accent);font-size:11px}
+.log-box{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-family:var(--mono);font-size:11px;max-height:400px;overflow:auto;color:var(--text-dim);white-space:pre-wrap;word-break:break-all;line-height:1.6}
+.trace-mini-item{display:flex;align-items:center;gap:6px;padding:4px 0;font-size:11px}
+.trace-mini-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.attempt-item{padding:8px 0;border-bottom:1px solid var(--border);font-size:12px}
+.attempt-item:last-child{border-bottom:none}
 /* ===== RAG Cards ===== */
-.rag-card {
-  background: linear-gradient(135deg, var(--purple-dim), rgba(154, 138, 204, 0.06));
-  border: 1px solid var(--purple);
-  border-radius: var(--radius-sm);
-  padding: 12px 14px; margin: 8px 0; font-size: 11px; line-height: 1.6;
-  transition: all 0.2s ease;
-}
-.rag-card:hover { border-color: var(--purple); box-shadow: 0 0 12px var(--purple-dim); }
-.rag-card .rag-query { color: var(--purple); font-weight: 600; }
-.rag-card .rag-result { color: var(--text-dim); margin-top: 3px; }
-.rag-card .rag-chunk { padding: 5px 0; border-bottom: 1px solid var(--border); }
-.rag-card .rag-chunk:last-child { border-bottom: none; }
-.rag-card .rag-chunk-id { color: var(--text-dim); font-size: 10px; }
-.rag-card .rag-chunk-snippet { color: var(--text-dimmer); font-size: 10px; }
-
-/* ===== Principle / Architecture ===== */
-.principle-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 16px; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
-.principle-section:hover { border-color: var(--text-dimmer); box-shadow: var(--shadow); }
-.principle-section h3 { font-size: 16px; margin-bottom: 12px; color: var(--accent); font-family: var(--font-display); letter-spacing: -0.2px; }
-.principle-section p, .principle-section li { font-size: 13px; color: var(--text-dim); line-height: 1.9; }
-.principle-section ul { padding-left: 24px; }
-.principle-section ol { padding-left: 24px; }
-.principle-section code { background: var(--surface2); padding: 2px 8px; border-radius: var(--radius-xs); font-size: 12px; font-family: var(--font-mono); border: 1px solid var(--border); }
-
-/* ===== Run Config Form ===== */
-.run-form { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 16px; }
-.run-form .form-row { display: flex; gap: 16px; flex-wrap: wrap; align-items: end; margin-bottom: 14px; }
-.run-form label { display: block; font-size: 11px; color: var(--text-dimmer); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; }
-.run-form input, .run-form select { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-xs); padding: 8px 12px; color: var(--text); font-size: 13px; width: 200px; transition: all 0.2s ease; font-family: var(--font-body); }
-.run-form input:focus, .run-form select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
-.run-form .checkbox-row { display: flex; align-items: center; gap: 8px; }
-.run-form .checkbox-row input { width: auto; }
-
-/* ===== Scrollbar ===== */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--text-dimmer); }
-
-/* ===== Responsive ===== */
-@media (max-width: 768px) {
-  .detail-panel { width: 100%; min-width: auto; }
-  .cve-grid { grid-template-columns: 1fr; }
-  .run-form input, .run-form select { width: 100%; }
-  header { padding: 8px 16px; min-height: auto; }
-  .container { padding: 16px; }
-  .stats-grid { grid-template-columns: repeat(2, 1fr); }
-}
-
+.rag-card{background:linear-gradient(135deg,var(--purple-dim),rgba(154,138,204,.06));border:1px solid var(--purple);border-radius:var(--radius-sm);padding:12px 14px;margin:8px 0;font-size:12px;line-height:1.6;transition:all .2s ease}
+.rag-card:hover{border-color:var(--purple);box-shadow:0 0 12px var(--purple-dim)}
+.rag-card .rag-query{color:var(--purple);font-weight:600;font-size:12px}
+.rag-card .rag-result{color:var(--text-dim);margin-top:3px}
+.rag-card .rag-chunk{padding:5px 0;border-bottom:1px solid var(--border)}
+.rag-card .rag-chunk:last-child{border-bottom:none}
+.rag-card .rag-chunk-id{color:var(--text-dim);font-size:10px}
+.rag-card .rag-chunk-snippet{color:var(--text-dimmer);font-size:10px}
+/* ===== Check Results ===== */
+.check-bar{display:flex;align-items:center;gap:12px;padding:8px 14px;border-radius:var(--radius-sm);font-size:12px;margin-top:6px;cursor:pointer}
+.check-bar.all-pass{background:var(--green-dim);border:1px solid var(--green);color:var(--green)}
+.check-bar.has-errors{background:var(--red-dim);border:1px solid var(--red);color:var(--red)}
+/* ===== Footer ===== */
+.toast{position:fixed;bottom:28px;right:28px;background:rgba(30,30,42,.92);border:1px solid var(--border);border-radius:var(--radius);padding:12px 18px;font-size:13px;z-index:200;display:none;max-width:420px;box-shadow:var(--shadow-lg);backdrop-filter:blur(20px)}
+.toast.show{display:block;animation:slideUp .3s ease}
+.toast.success{border-color:var(--green)}
+.toast.error{border-color:var(--red)}
 /* ===== Animations ===== */
-@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
-.pulse { animation: pulse 2s ease-in-out infinite; }
-@keyframes fadeSlideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes glowPulse { 0%,100% { box-shadow: 0 0 4px var(--accent-dim); } 50% { box-shadow: 0 0 14px var(--accent-dim), 0 0 28px rgba(212, 166, 90, 0.08); } }
-.stagger-fade { opacity: 0; transform: translateY(10px); transition: opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1), transform 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
-.stagger-fade.visible { opacity: 1; transform: translateY(0); }
-
-/* ===== Toast ===== */
-.toast {
-  position: fixed; bottom: 28px; right: 28px; background: var(--glass-bg);
-  border: 1px solid var(--glass-border); border-radius: var(--radius);
-  padding: 14px 20px; font-size: 13px; z-index: 200; display: none;
-  max-width: 420px; box-shadow: var(--shadow-lg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeSlideIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.stagger-fade{opacity:0;transform:translateY(10px);transition:opacity .5s ease,transform .5s ease}
+.stagger-fade.visible{opacity:1;transform:translateY(0)}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--text-dimmer)}
+@media(max-width:768px){
+  .detail-panel{width:100%;min-width:auto}
+  .cve-grid{grid-template-columns:1fr}
+  .pipeline-grid{grid-template-columns:repeat(3,1fr)}
+  header{padding:8px 14px}
+  .container{padding:14px}
+  .stats-grid{grid-template-columns:repeat(3,1fr)}
 }
-.toast.show { display: block; animation: fadeSlideIn 0.3s cubic-bezier(0.22, 1, 0.36, 1); }
-.toast.success { border-color: var(--green); }
-.toast.error { border-color: var(--red); }
 </style>
 </head>
 <body>
-
-<!-- ===== Header ===== -->
 <header>
   <div class="header-left">
-    <span class="status-dot no_data pulse" id="statusDot"></span>
-    <h1>Kernel <span class="hl-accent">Livepatch</span> Agent</h1>
-    <span style="font-size:12px;color:var(--text-dim)" id="statusText">加载中…</span>
+    <span class="status-dot" id="statusDot"></span>
+    <h1>Kernel <span class="a">Livepatch</span> Agent</h1>
+    <span style="font-size:12px;color:var(--text-dim)" id="statusText">加载中 / Loading…</span>
   </div>
-  <div class="header-controls">
-    <span class="theme-toggle" onclick="toggleTheme()" title="切换深色/浅色主题" id="themeToggle">🌙</span>
-    <span class="btn" onclick="scanWorkdir()">🔄 扫描</span>
-    <span class="btn btn-primary" onclick="showRunForm()">▶ 启动</span>
-    <span class="btn btn-danger" onclick="stopAgent()">⏹ 停止</span>
-    <span class="btn" onclick="runHeaderCheck()">🔍 环境检测</span>
+  <div class="header-right">
+    <span class="btn" onclick="scanWorkdir()">🔄 扫描 / Scan</span>
+    <span class="btn btn-primary" onclick="showRunForm()">▶ 启动 / Start</span>
+    <span class="btn btn-danger" onclick="stopAgent()">⏹ 停止 / Stop</span>
+    <span class="btn" onclick="runHeaderCheck()">🔍 检测 / Check</span>
+    <span class="btn" onclick="cleanKernelSrc()">🧹 清理内核 / Clean Src</span>
+    <span class="theme-toggle" id="themeToggle" onclick="toggleTheme()">🌙</span>
   </div>
-  <div id="headerCheckBar" style="width:100%;margin-top:4px;display:none"></div>
+  <div id="headerCheckBar" style="width:100%;margin-top:2px;display:none"></div>
 </header>
-
 <div class="container">
-
-<!-- ===== Tabs ===== -->
-<div class="tabs">
-  <button class="tab active" data-tab="dashboard">📊 仪表盘</button>
-  <button class="tab" data-tab="pipeline">🔀 流程图</button>
-  <button class="tab" data-tab="principles">📖 原理说明</button>
-  <button class="tab" data-tab="env">⚙️ 环境</button>
-  <button class="tab" data-tab="trace">🔗 链路</button>
-</div>
-
-<!-- ===== Tab: Dashboard ===== -->
-<div class="tab-content active" id="tab-dashboard">
-  <div class="stats-grid" id="statsGrid">
-    <div class="stat-card"><div class="stat-label">CVE 总数</div><div class="stat-value blue" id="statTotal">-</div></div>
-    <div class="stat-card"><div class="stat-label">成功</div><div class="stat-value green" id="statSuccess">-</div></div>
-    <div class="stat-card"><div class="stat-label">失败</div><div class="stat-value red" id="statFailed">-</div></div>
-    <div class="stat-card"><div class="stat-label">需人工介入</div><div class="stat-value yellow" id="statManual">-</div></div>
-    <div class="stat-card"><div class="stat-label">跳过</div><div class="stat-value" id="statSkipped" style="color:var(--text-dim)">-</div></div>
-    <div class="stat-card"><div class="stat-label">内核版本</div><div class="stat-value" style="font-size:13px;font-weight:400" id="statKernel">-</div></div>
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" data-tab="dashboard">📊 仪表盘 / Dashboard</button>
+    <button class="tab" data-tab="pipeline">🔀 流程图 / Pipeline</button>
+    <button class="tab" data-tab="principles">📖 原理说明 / Principles</button>
+    <button class="tab" data-tab="env">⚙️ 环境 / Env</button>
+    <button class="tab" data-tab="trace">🔗 链路 / Trace</button>
   </div>
 
-  <div id="runFormContainer"></div>
-
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-    <h2 style="font-size:15px;font-weight:600">CVE 列表</h2>
-    <span style="font-size:12px;color:var(--text-dim)" id="lastUpdate"></span>
+  <!-- Tab: Dashboard -->
+  <div class="tab-content active" id="tab-dashboard">
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card"><div class="stat-label">CVE 总数 / Total</div><div class="stat-value blue" id="statTotal">-</div></div>
+      <div class="stat-card"><div class="stat-label">成功 / Success</div><div class="stat-value green" id="statSuccess">-</div></div>
+      <div class="stat-card"><div class="stat-label">失败 / Failed</div><div class="stat-value red" id="statFailed">-</div></div>
+      <div class="stat-card"><div class="stat-label">需人工 / Manual</div><div class="stat-value yellow" id="statManual">-</div></div>
+      <div class="stat-card"><div class="stat-label">跳过 / Skipped</div><div class="stat-value" id="statSkipped" style="color:var(--text-dimmer)">-</div></div>
+      <div class="stat-card"><div class="stat-label">内核 / Kernel</div><div class="stat-value" style="font-size:13px;font-weight:500" id="statKernel">-</div></div>
+    </div>
+    <div id="runFormContainer"></div>
+    <div class="pipeline-section">
+      <h3>🔀 流水线 / Pipeline <span style="font-weight:400;color:var(--text-dim);font-size:11px">(数字 = 此状态的 CVE 数 / CVEs at this stage)</span></h3>
+      <div class="pipeline-grid" id="pipelineGrid"></div>
+      <div class="pipeline-legend">
+        <span>未到 / Pending</span><span>活跃 / Active</span><span>完成 / Done</span><span>失败 / Failed</span>
+      </div>
+    </div>
+    <div class="cve-header">
+      <h2>CVE 列表 / CVE List</h2>
+      <span class="last-update" id="lastUpdate"></span>
+    </div>
+    <div class="cve-grid" id="cveGrid"></div>
   </div>
-  <div class="cve-grid" id="cveGrid"></div>
-</div>
 
-<!-- ===== Tab: Pipeline ===== -->
-<div class="tab-content" id="tab-pipeline">
-  <div class="pipeline-wrapper">
-    <div class="pipeline" id="pipelineFlow"></div>
-  </div>
-  <div style="margin-top:16px">
-    <h3 style="font-size:14px;margin-bottom:8px">图例</h3>
-    <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--text-dim)">
-      <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--surface2);border:1px solid var(--border);vertical-align:middle;margin-right:4px"></span> 未到达</span>
-      <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--accent);vertical-align:middle;margin-right:4px"></span> 当前活跃</span>
-      <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#064e3b;border:1px solid var(--green);vertical-align:middle;margin-right:4px"></span> 已完成</span>
-      <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#450a0a;border:1px solid var(--red);vertical-align:middle;margin-right:4px"></span> 失败/错误</span>
+  <!-- Tab: Pipeline (full 2D) -->
+  <!-- Tab: Pipeline -->
+  <div class="tab-content" id="tab-pipeline">
+    <h3 style="font-size:15px;font-weight:600;margin-bottom:12px">🔀 流水线总览 / Pipeline Overview</h3>
+    <div style="margin-bottom:12px;display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--text-dim)">
+      <span><span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:var(--surface2);border:1px solid var(--border);vertical-align:middle;margin-right:4px"></span> 未到 / Pending</span>
+      <span><span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:var(--yellow);vertical-align:middle;margin-right:4px"></span> 活跃 / Active</span>
+      <span><span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:var(--green);vertical-align:middle;margin-right:4px"></span> 完成 / Done</span>
+      <span><span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:var(--red);vertical-align:middle;margin-right:4px"></span> 失败 / Failed</span>
+      <span style="margin-left:auto;font-size:10px;color:var(--text-dimmer)">数字 = 此状态的 CVE 数 / CVEs at this stage</span>
+    </div>
+    <div class="pipeline-grid" id="pipelineGridFull"></div>
+    <div style="margin-top:16px;font-size:13px;color:var(--text-dim);line-height:1.9;padding:16px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm)">
+      <strong style="color:var(--accent);font-size:14px">📋 流水线阶段说明 / Stage Description</strong><br><br>
+      从 TaskCreated 到 ReportWritten 共 <strong>18 个状态</strong>，按 6 列 × 3 行网格排列，无需横向滚动：<br><br>
+      <strong>第 1 行 — 正向流程 / Forward Flow</strong><br>
+      TaskCreated → CveResolved → PatchFetched → PatchAnalyzed → TargetChecked → PatchApplied<br>
+      <span style="font-size:11px">CVE 创建后依次解析、获取补丁、分析 IR、检查目标源码、应用补丁</span><br><br>
+      <strong>第 2 行 — 构建 → 验证 → 报告 / Build → Verify → Report</strong><br>
+      BuildRunning → BuildSucceeded → LoadTesting → Verified → ReportWritten → FixEnvironment<br>
+      <span style="font-size:11px">kpatch-build 编译、加载测试、验证 .ko、生成报告，FixEnvironment 为环境修复备用</span><br><br>
+      <strong>第 3 行 — 失败处理 / Failure Handling</strong><br>
+      BuildFailed → FailureClassified → RewritePrepared → ManualRequired → Failed → Skipped<br>
+      <span style="font-size:11px">构建失败后分类归因，可选自动改写或转人工，最终标记为失败或跳过</span>
     </div>
   </div>
+
+  <!-- Tab: Principles -->
+  <div class="tab-content" id="tab-principles">
+    <div class="prin-section">
+      <h3>🎯 项目目标 / Project Goal</h3>
+      <p>自动将上游 Linux 内核 CVE 修复补丁转化为目标内核（Anolis OS 6.6.102）的可加载 livepatch <code>.ko</code> 模块，全程无需人工介入。</p>
+    </div>
+    <div class="prin-section">
+      <h3>🔁 工作流程 / Workflow</h3>
+      <ol style="padding-left:18px">
+        <li><strong>CVE 解析 / Resolve</strong> — 从 NVD 和 Linux stable 仓库获取 CVE 元数据与补丁链接</li>
+        <li><strong>补丁获取 &amp; 解析 / Fetch &amp; Parse</strong> — 下载原始 unified diff，解析为结构化的中间表示（patch_ir + change_units）</li>
+        <li><strong>目标检查 / Target Check</strong> — 验证目标内核源码树是否存在，检查 Kbuild Makefile 追踪 patched 对象是否被配置禁用</li>
+        <li><strong>补丁应用 &amp; 构建 / Apply &amp; Build</strong> — 在目标内核上 dry-run 检查补丁可应用性，然后用 kpatch-build 编译 livepatch .ko</li>
+        <li><strong>失败分类 / Classify</strong> — 当构建失败时，用 19 种预定义模式（+ YAML 规则）对构建日志进行归因</li>
+        <li><strong>自动重写 / Rewrite</strong> — 基于失败原因选择 6 种改写策略（context_drift / api_mismatch / missing_include / struct_abi / data_change / no_fentry），可选 LLM 辅助生成</li>
+        <li><strong>验证 / Verify</strong> — 在目标 VM（SSH）中加载 .ko，检查 sysfs 状态，执行可选的 PoC 验证</li>
+        <li><strong>报告生成 / Report</strong> — 输出结构化 report.json + summary.json</li>
+      </ol>
+    </div>
+    <div class="prin-section">
+      <h3>🧠 智能决策 / Decision Making</h3>
+      <p>项目支持两级决策 / Two decision levels:</p>
+      <ul>
+        <li><strong>规则模式 / Rule Mode</strong>（<code>--no-llm</code>）— 纯确定性状态机 + YAML 规则驱动，适合无 API key 的环境</li>
+        <li><strong>LLM 增强模式 / LLM Mode</strong>（默认）— 在失败分类后咨询 LLM（DeepSeek/OpenAI/Ollama），辅助选择改写策略和生成重写 diff</li>
+      </ul>
+      <p style="margin-top:6px">安全护栏 / Safety: 非可重试故障（struct_abi / no_fentry 等）即使 LLM 建议改写也强制转人工。</p>
+    </div>
+    <div class="prin-section">
+      <h3>🏗️ 架构 / Architecture</h3>
+      <ul>
+        <li><strong>状态机 / State Machine</strong> — 18 个预定义状态，JSON 持久化每次转移</li>
+        <li><strong>Planner</strong> — 决定每个 CVE 的下一步 action，支持 LLM 辅助决策</li>
+        <li><strong>工具链 / Tools</strong> — 10 个独立工具（resolver / fetcher / parser / builder / classifier / advisor / verifier / reporter / config-checker / semantic-validator）</li>
+        <li><strong>RAG 知识库</strong> — BM25 检索器，索引 YAML 规则 + 内核 API 变更 + kpatch FAQ 文档</li>
+        <li><strong>语义验证器 / Semantic Validator</strong> — 重写后的 patch 自动检查安全语义是否保持（安全检查、错误返回路径、内存泄漏等）</li>
+      </ul>
+    </div>
+    <div class="prin-section">
+      <h3>🛡️ 安全约束 / Security Constraints</h3>
+      <ul>
+        <li>不会修改 <code>__init</code> / <code>__exit</code> 函数</li>
+        <li>不会引入新的全局变量或 EXPORT_SYMBOL</li>
+        <li>不会移除原始 patch 中的安全检查（<code>if (!ptr)</code> / <code>WARN_ON</code> 等）</li>
+        <li>不会泄露 shadow 变量或动态分配内存</li>
+        <li>非可重试故障强制转人工，LLM 不能覆盖此安全门</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Tab: Environment -->
+  <div class="tab-content" id="tab-env">
+    <div class="env-grid" id="envGrid"><p style="color:var(--text-dim);grid-column:1/-1;text-align:center;padding:40px 0">环境加载中 / Loading environment…</p></div>
+  </div>
+
+  <!-- Tab: Trace -->
+  <div class="tab-content" id="tab-trace">
+    <div style="margin-bottom:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <label style="font-size:12px;color:var(--text-dim)">选择 CVE / Select CVE:</label>
+      <select id="traceCveSelect" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;min-width:200px" onchange="loadTrace()"></select>
+    </div>
+    <div id="traceContent" class="trace-timeline" style="color:var(--text-dim);font-size:13px;padding:20px;text-align:center">选择 CVE / Select a CVE</div>
+  </div>
 </div>
-
-<!-- ===== Tab: Principles ===== -->
-<div class="tab-content" id="tab-principles">
-  <div class="principle-section">
-    <h3>🎯 项目目标</h3>
-    <p>自动将上游 Linux 内核 CVE 修复补丁转化为目标内核（Anolis OS 6.6.102）的可加载 livepatch <code>.ko</code> 模块，全程无需人工介入。</p>
-  </div>
-  <div class="principle-section">
-    <h3>🔁 工作流程</h3>
-    <ol style="padding-left:18px">
-      <li><strong>CVE 解析</strong> — 从 NVD 和 Linux stable 仓库获取 CVE 元数据与补丁链接</li>
-      <li><strong>补丁获取 &amp; 解析</strong> — 下载原始 unified diff，解析为结构化的中间表示（patch_ir + change_units）</li>
-      <li><strong>目标检查</strong> — 验证目标内核源码树是否存在，检查 Kbuild Makefile 追踪 patched 对象是否被配置禁用</li>
-      <li><strong>补丁应用 &amp; 构建</strong> — 在目标内核上 dry-run 检查补丁可应用性，然后用 kpatch-build 编译 livepatch .ko</li>
-      <li><strong>失败分类</strong> — 当构建失败时，用 19 种预定义模式（+ YAML 规则）对构建日志进行归因</li>
-      <li><strong>自动重写</strong> — 基于失败原因选择 6 种改写策略（context_drift / api_mismatch / missing_include / struct_abi / data_change / no_fentry），可选 LLM 辅助生成</li>
-      <li><strong>验证</strong> — 在目标 VM（SSH）中加载 .ko，检查 sysfs 状态，执行可选的 PoC 验证</li>
-      <li><strong>报告生成</strong> — 输出结构化 report.json + summary.json</li>
-    </ol>
-  </div>
-  <div class="principle-section">
-    <h3>🧠 智能决策</h3>
-    <p>项目支持两级决策：</p>
-    <ul>
-      <li><strong>规则模式</strong>（<code>--no-llm</code>）— 纯确定性状态机 + YAML 规则驱动，适合无 API key 的环境</li>
-      <li><strong>LLM 增强模式</strong>（默认）— 在失败分类后咨询 LLM（DeepSeek/OpenAI/Ollama），辅助选择改写策略和生成重写 diff</li>
-    </ul>
-    <p>安全护栏：非可重试故障（struct_abi / no_fentry 等）即使 LLM 建议改写也强制转人工。</p>
-  </div>
-  <div class="principle-section">
-    <h3>🏗️ 架构</h3>
-    <ul>
-      <li><strong>状态机</strong> — 18 个预定义状态，JSON 持久化每次转移</li>
-      <li><strong>Planner</strong> — 决定每个 CVE 的下一步 action，支持 LLM 辅助决策</li>
-      <li><strong>工具链</strong> — 10 个独立工具（resolver / fetcher / parser / builder / classifier / advisor / verifier / reporter / config-checker / semantic-validator）</li>
-      <li><strong>RAG 知识库</strong> — BM25 检索器，索引 YAML 规则 + 内核 API 变更 + kpatch FAQ 文档</li>
-      <li><strong>语义验证器</strong> — 重写后的 patch 自动检查安全语义是否保持（安全检查、错误返回路径、内存泄漏等）</li>
-    </ul>
-  </div>
-  <div class="principle-section">
-    <h3>🛡️ 安全约束</h3>
-    <ul>
-      <li>不会修改 <code>__init</code> / <code>__exit</code> 函数</li>
-      <li>不会引入新的全局变量或 EXPORT_SYMBOL</li>
-      <li>不会移除原始 patch 中的安全检查（<code>if (!ptr)</code> / <code>WARN_ON</code> 等）</li>
-      <li>不会泄露 shadow 变量或动态分配内存</li>
-      <li>非可重试故障强制转人工，LLM 不能覆盖此安全门</li>
-    </ul>
-  </div>
-</div>
-
-<!-- ===== Tab: Environment ===== -->
-<div class="tab-content" id="tab-env">
-  <div class="env-grid" id="envGrid"></div>
-</div>
-
-<!-- ===== Tab: Trace ===== -->
-<div class="tab-content" id="tab-trace">
-  <div style="margin-bottom:12px">
-    <label style="font-size:12px;color:var(--text-dim);margin-right:8px">选择 CVE：</label>
-    <select id="traceCveSelect" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:4px 8px;color:var(--text);font-size:13px;min-width:180px" onchange="loadTrace()"></select>
-  </div>
-  <div id="traceContent" style="color:var(--text-dim);font-size:13px;padding:20px 0;text-align:center">选择 CVE 查看工程链路</div>
-</div>
-
-</div> <!-- /container -->
-
-<!-- ===== Detail Panel ===== -->
 <div class="detail-overlay" id="detailOverlay" onclick="closeDetail()"></div>
 <div class="detail-panel" id="detailPanel">
-  <button class="close-btn" onclick="closeDetail()">&times;</button>
-  <h2 id="detailTitle">CVE-xxxx-xxxxx</h2>
-  <div id="detailBody"></div>
+  <div class="detail-header">
+    <h2 id="detailTitle">CVE-xxxx-xxxxx</h2>
+    <button class="close-btn" onclick="closeDetail()">&times;</button>
+  </div>
+  <div class="detail-tabs">
+    <button class="dtab active" data-dtab="overview">概览 / Overview</button>
+    <button class="dtab" data-dtab="failure">失败 / Failure</button>
+    <button class="dtab" data-dtab="patches">补丁 / Patches</button>
+    <button class="dtab" data-dtab="logs">日志 / Logs</button>
+    <button class="dtab" data-dtab="files">文件 / Files</button>
+  </div>
+  <div class="detail-body">
+    <div class="dtab-content active" id="dtab-overview"><p style="color:var(--text-dim)">选择 CVE 查看详情 / Select a CVE to view details</p></div>
+    <div class="dtab-content" id="dtab-failure"></div>
+    <div class="dtab-content" id="dtab-patches"></div>
+    <div class="dtab-content" id="dtab-logs"></div>
+    <div class="dtab-content" id="dtab-files"></div>
+  </div>
 </div>
-
-<!-- ===== Toast ===== -->
 <div class="toast" id="toast"></div>
-
 <script>
-// ===== Theme System =====
-(function() {
-  function getTheme() { return localStorage.getItem('theme') || 'light'; }
-  function setTheme(theme) {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('theme', theme);
-    var btn = document.getElementById('themeToggle');
-    if (btn) btn.textContent = theme === 'dark' ? '🌙' : '☀️';
-  }
-  window.toggleTheme = function() {
-    var current = getTheme();
-    var next = current === 'dark' ? 'light' : 'dark';
-    document.documentElement.classList.add('theme-transitioning');
-    setTheme(next);
-    setTimeout(function() { document.documentElement.classList.remove('theme-transitioning'); }, 200);
-  };
-  setTheme(getTheme());
-})();
+// ===== Theme =====
+(function(){function g(){return localStorage.getItem('theme')||'dark'}function s(t){document.documentElement.setAttribute('data-theme',t);localStorage.setItem('theme',t);var b=document.getElementById('themeToggle');if(b)b.textContent=t==='dark'?'🌙':'☀️'}window.toggleTheme=function(){var c=g(),n=c==='dark'?'light':'dark';s(n)};s(g())})();
 
 // ===== State =====
-let stateCache = { cves: [], status: 'no_data' };
-let currentDetail = null;
+var stateCache={cves:[],status:'no_data'};
+var currentDetail=null;
+var _pollTimer=null;
 
-// ===== Tabs =====
-document.querySelectorAll('.tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    tab.classList.add('active');
-    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
-    setTimeout(triggerStagger, 80);
-    // Auto-load trace when switching to trace tab
-    if (tab.dataset.tab === 'trace') {
-      const sel = document.getElementById('traceCveSelect');
-      if (sel && sel.options.length > 0 && !sel.value) {
-        sel.value = sel.options[0].value;
-        loadTrace();
-      } else if (sel && sel.value) {
-        loadTrace();
-      }
-    }
-  });
-});
+// ===== Helpers =====
+function escapeHtml(s){if(!s)return'';var d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function showToast(msg,type){var t=document.getElementById('toast');t.textContent=msg;t.className='toast show '+(type||'');setTimeout(function(){t.classList.remove('show')},4000)}
 
-// ===== Toast =====
-function showToast(msg, type) {
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.className = 'toast show ' + (type || '');
-  setTimeout(() => t.classList.remove('show'), 4000);
-}
-
-// ===== Pipeline Render =====
-const PIPELINE_STATES = [
-  { id: 'TaskCreated', label: 'Task\nCreated' },
-  { id: 'CveResolved', label: 'CVE\nResolved' },
-  { id: 'PatchFetched', label: 'Patch\nFetched' },
-  { id: 'PatchAnalyzed', label: 'Patch\nAnalyzed' },
-  { id: 'TargetChecked', label: 'Target\nChecked' },
-  { id: 'PatchApplied', label: 'Patch\nApplied' },
-  { id: 'BuildRunning', label: 'Build\nRunning' },
-  { id: 'BuildSucceeded', label: 'Build\nSucceeded' },
-  { id: 'BuildFailed', label: 'Build\nFailed' },
-  { id: 'FailureClassified', label: 'Failure\nClassified' },
-  { id: 'RewritePrepared', label: 'Rewrite\nPrepared' },
-  { id: 'LoadTesting', label: 'Load\nTesting' },
-  { id: 'Verified', label: 'Verified' },
-  { id: 'VerifyFailed', label: 'Verify\nFailed' },
-  { id: 'FixEnvironment', label: 'Fix\nEnvironment' },
-  { id: 'ManualRequired', label: 'Manual\nRequired' },
-  { id: 'Skipped', label: 'Skipped' },
-  { id: 'ReportWritten', label: 'Report\nWritten' },
+// ===== Pipeline Grid (2D) =====
+var PIPELINE_GRID=[
+  {id:'TaskCreated',label:'Task Created',cn:'初始'},
+  {id:'CveResolved',label:'CVE Resolved',cn:'CVE 解析'},
+  {id:'PatchFetched',label:'Patch Fetched',cn:'补丁获取'},
+  {id:'PatchAnalyzed',label:'Patch Analyzed',cn:'补丁分析'},
+  {id:'TargetChecked',label:'Target Checked',cn:'目标检查'},
+  {id:'PatchApplied',label:'Patch Applied',cn:'补丁应用'},
+  {id:'BuildRunning',label:'Build Running',cn:'构建中'},
+  {id:'BuildSucceeded',label:'Build Succeeded',cn:'构建成功'},
+  {id:'LoadTesting',label:'Load Testing',cn:'加载测试'},
+  {id:'Verified',label:'Verified',cn:'验证通过'},
+  {id:'ReportWritten',label:'Report Written',cn:'报告生成'},
+  {id:'FixEnvironment',label:'Fix Environment',cn:'环境修复'},
+  {id:'BuildFailed',label:'Build Failed',cn:'构建失败'},
+  {id:'FailureClassified',label:'Failure Classified',cn:'失败分类'},
+  {id:'RewritePrepared',label:'Rewrite Prepared',cn:'改写准备'},
+  {id:'ManualRequired',label:'Manual Required',cn:'需人工介入'},
+  {id:'Failed',label:'Failed',cn:'已失败'},
+  {id:'Skipped',label:'Skipped',cn:'已跳过'},
 ];
 
-function renderPipeline(activeStates) {
-  const el = document.getElementById('pipelineFlow');
-  el.innerHTML = '';
-  PIPELINE_STATES.forEach((s, i) => {
-    const node = document.createElement('div');
-    node.className = 'pipeline-node';
+// Stage order for progress dots
+var STAGE_ORDER=['TaskCreated','CveResolved','PatchFetched','PatchAnalyzed','TargetChecked','PatchApplied','BuildRunning','BuildSucceeded','LoadTesting','Verified','ReportWritten','BuildFailed','FailureClassified','RewritePrepared','ManualRequired','Failed','Skipped'];
 
-    const box = document.createElement('div');
-    box.className = 'node-box';
-    const info = activeStates[s.id];
-    if (info) {
-      if (info.status === 'success' || info.done) box.classList.add('done');
-      else if (info.status === 'failed' || info.failed) box.classList.add('failed');
-      else if (info.skipped) box.classList.add('skipped');
-      else box.classList.add('active');
+function renderPipeline(stateMap){
+  var grid=document.getElementById('pipelineGrid');grid.innerHTML='';
+  PIPELINE_GRID.forEach(function(s){
+    var cell=document.createElement('div');cell.className='pg-node';
+    var info=stateMap[s.id];
+    if(info){
+      if(info.status==='success'||info.done)cell.classList.add('done');
+      else if(info.status==='failed')cell.classList.add('failed');
+      else if(info.skipped)cell.classList.add('skipped');
+      else cell.classList.add('active');
     }
-    box.textContent = s.label;
-    node.appendChild(box);
-
-    const label = document.createElement('div');
-    label.className = 'node-label';
-    if (info) {
-      label.textContent = info.count > 0 ? `${info.count} CVE` : '';
-    }
-    node.appendChild(label);
-
-    el.appendChild(node);
-
-    if (i < PIPELINE_STATES.length - 1) {
-      const arrow = document.createElement('div');
-      arrow.className = 'pipeline-arrow';
-      arrow.textContent = '→';
-      el.appendChild(arrow);
-    }
+    cell.innerHTML='<div class="pg-count">'+(info?info.count:0)+'</div>'+
+      '<div class="pg-label">'+s.cn+'<br>'+s.label+'</div>';
+    grid.appendChild(cell);
   });
 }
 
 // ===== CVE Card =====
-function renderCveCards(cves) {
-  const grid = document.getElementById('cveGrid');
-  grid.innerHTML = '';
-  if (!cves || cves.length === 0) {
-    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-dim)">暂无 CVE 数据</div>';
-    return;
-  }
-  cves.forEach((c, idx) => {
-    const card = createCveCard(c, idx);
-    card.classList.add('stagger-fade');
-    card.style.transitionDelay = `${idx * 30}ms`;
-    grid.appendChild(card);
-  });
-}
+function createCveCard(c){
+  var card=document.createElement('div');
+  var state=c.state||'unknown',status=c.status||'no_data';
+  var stateClass='state-running';
+  if(status==='success')stateClass='state-success';else if(status==='failed')stateClass='state-failed';
+  else if(status==='manual_required')stateClass='state-manual';else if(status==='skipped')stateClass='state-skipped';
+  else if(status==='idle'||status==='no_data')stateClass='state-idle';
+  card.className='cve-card '+stateClass;card.dataset.cveId=c.cve_id;
 
-// ===== Stats =====
-function renderStats(data) {
-  const cves = data.cves || [];
-  const total = cves.length;
-  const success = cves.filter(c => c.status === 'success').length;
-  const failed = cves.filter(c => c.status === 'failed').length;
-  const manual = cves.filter(c => c.status === 'manual_required').length;
-  const skipped = cves.filter(c => c.status === 'skipped').length;
+  var tagCls='tag-running';
+  if(status==='success')tagCls='tag-success';else if(status==='failed')tagCls='tag-failed';
+  else if(status==='manual_required')tagCls='tag-manual';else if(status==='skipped')tagCls='tag-skipped';
+  else tagCls='tag-idle';
 
-  document.getElementById('statTotal').textContent = total;
-  document.getElementById('statSuccess').textContent = success;
-  document.getElementById('statFailed').textContent = failed;
-  document.getElementById('statManual').textContent = manual;
-  document.getElementById('statSkipped').textContent = skipped;
-  document.getElementById('statKernel').textContent = data.kernel_version || '-';
-}
-
-// ===== Status Header =====
-function updateHeader(data) {
-  const dot = document.getElementById('statusDot');
-  const text = document.getElementById('statusText');
-  const status = data.status || 'no_data';
-  dot.className = 'status-dot ' + status;
-  if (status === 'running') {
-    dot.classList.add('pulse');
-    text.textContent = '运行中';
-  } else if (status === 'idle') {
-    text.textContent = '就绪（有未完成任务）';
-  } else if (status === 'completed') {
-    text.textContent = '已完成';
-  } else {
-    text.textContent = '无数据';
-  }
-}
-
-// ===== CVE Detail =====
-async function openDetail(cveId) {
-  currentDetail = cveId;
-  document.getElementById('detailOverlay').classList.add('open');
-  document.getElementById('detailPanel').classList.add('open');
-  document.getElementById('detailTitle').textContent = cveId;
-
-  const body = document.getElementById('detailBody');
-  body.innerHTML = '<p style="color:var(--text-dim)">加载中…</p>';
-
-  try {
-    const resp = await fetch(`/api/cve/${cveId}`);
-    const data = await resp.json();
-
-    let html = '';
-
-    // Attempts
-    if (data.attempts && data.attempts.length > 0) {
-      html += '<h3>尝试记录</h3>';
-      data.attempts.forEach(a => {
-        const idx = a.attempt_index || '?';
-        const strat = a.rewrite_plan || a.strategy || '—';
-        const result = a.result ? (a.result.success ? '✅' : '❌') : '—';
-        const src = a.rewrite_source || '—';
-        html += `<div class="attempt-item">#${idx} 策略: ${strat} 来源: ${src} ${result}`;
-        if (a.failure && a.failure.reason_code) {
-          html += ` 原因: ${a.failure.reason_code}`;
-        }
-        html += '</div>';
-      });
-    }
-
-    // Failure
-    if (data.metadata && Object.keys(data.metadata).length > 0) {
-      html += '<h3>CVE 元数据</h3><div class="detail-section">';
-      const nvd = data.metadata.nvd || {};
-      html += `<div>CVE ID: ${nvd.id || cveId}</div>`;
-      html += `<div>描述: ${(nvd.description || '').slice(0, 200)}</div>`;
-      if (nvd.metrics && nvd.metrics.cvssMetricV31) {
-        const cvss = nvd.metrics.cvssMetricV31[0];
-        html += `<div>CVSS: ${cvss.cvssData ? cvss.cvssData.baseScore + ' (' + cvss.cvssData.baseSeverity + ')' : '—'}</div>`;
-      }
-      html += '</div>';
-    }
-
-    // Patches
-    if (data.patches && Object.keys(data.patches).length > 0) {
-      html += '<h3>补丁文件</h3>';
-      for (const [name, content] of Object.entries(data.patches)) {
-        html += `<div style="margin-bottom:6px"><strong style="font-size:12px">${name}</strong></div>`;
-        html += `<pre>${escapeHtml(content.slice(0, 2000))}</pre>`;
-      }
-    }
-
-    // Change units
-    if (data.change_units && data.change_units.units) {
-      html += '<h3>变更单元</h3><div class="detail-section">';
-      data.change_units.units.forEach(u => {
-        const file = u.file || '?';
-        const func = u.function || '?';
-        const role = u.semantic_role || '?';
-        const allow = u.rewrite_allowed ? '✅' : '❌';
-        html += `<div>${u.change_id}: ${func} @ ${file} (${role}) ${allow}</div>`;
-      });
-      html += '</div>';
-    }
-
-    // Log links
-    html += '<h3>日志</h3><div class="detail-section">';
-    for (let i = 1; i <= 10; i++) {
-      html += `<div><a href="#" onclick="loadLog('${cveId}', ${i});return false">build_${i}.log</a></div>`;
-    }
-    html += '</div>';
-    html += '<div id="logViewer"></div>';
-
-    body.innerHTML = html;
-  } catch (e) {
-    body.innerHTML = `<p style="color:var(--red)">加载失败: ${e.message}</p>`;
-  }
-}
-
-function closeDetail() {
-  document.getElementById('detailOverlay').classList.remove('open');
-  document.getElementById('detailPanel').classList.remove('open');
-  currentDetail = null;
-}
-
-async function loadLog(cveId, attempt) {
-  const viewer = document.getElementById('logViewer');
-  viewer.innerHTML = '<div class="log-box">加载中…</div>';
-  try {
-    const resp = await fetch(`/api/logs/${cveId}/${attempt}`);
-    const data = await resp.json();
-    if (data.content) {
-      viewer.innerHTML = `<div class="log-box">${escapeHtml(data.content.slice(-30000))}</div>`;
-    } else {
-      viewer.innerHTML = `<div class="log-box">${data.error || '日志为空'}</div>`;
-    }
-  } catch (e) {
-    viewer.innerHTML = `<div class="log-box" style="color:var(--red)">${e.message}</div>`;
-  }
-}
-
-function escapeHtml(s) {
-  if (!s) return '';
-  const div = document.createElement('div');
-  div.textContent = s;
-  return div.innerHTML;
-}
-
-// ===== Environment =====
-async function renderEnv() {
-  try {
-    const resp = await fetch('/api/environment');
-    const data = await resp.json();
-    const grid = document.getElementById('envGrid');
-
-    const items = [
-      { key: 'Docker 环境', val: data.docker ? '✅ 容器内' : (data.docker_available ? '✅ CLI 可用' : '❌ 未安装') },
-      { key: 'Python', val: data.python || '—' },
-      { key: '工作目录', val: data.workdir || '—' },
-      { key: 'KERNEL_SRC', val: data.kernel_src || '—' },
-      { key: 'VMLINUX_PATH', val: data.vmlinux_path || '—' },
-      { key: 'LLM Provider', val: data.llm_provider || '—' },
-      { key: 'DeepSeek API Key', val: data.deepseek_key_set ? '✅ 已设置' : '❌ 未设置' },
-      { key: 'OpenAI API Key', val: data.openai_key_set ? '✅ 已设置' : '❌ 未设置' },
-    ];
-    if (data.run_config) {
-      items.push({ key: '配置·内核版本', val: data.run_config.kernel_version || '—' });
-      items.push({ key: '配置·最大尝试', val: String(data.run_config.max_attempts || '—') });
-      items.push({ key: '配置·创建时间', val: data.run_config.created_at || '—' });
-    }
-    grid.innerHTML = items.map(i =>
-      `<div class="env-item"><div class="env-key">${i.key}</div><div class="env-val">${i.val}</div></div>`
-    ).join('');
-  } catch (e) {
-    document.getElementById('envGrid').innerHTML = `<p style="color:var(--red)">加载失败: ${e.message}</p>`;
-  }
-}
-
-// ===== Run Form =====
-function showRunForm() {
-  const cont = document.getElementById('runFormContainer');
-  if (cont.innerHTML) {
-    cont.innerHTML = '';
-    return;
-  }
-  cont.innerHTML = `
-    <div class="run-form">
-      <h3 style="font-size:14px;margin-bottom:8px">启动新 Agent Run</h3>
-      <div class="form-row">
-        <div><label>CVE 文件</label><input type="text" id="runCves" value="sample_cves.txt" style="width:180px"></div>
-        <div><label>内核版本</label><input type="text" id="runKernel" value="6.6.102-5.2.an23.x86_64" style="width:220px"></div>
-        <div><label>最大尝试</label><input type="number" id="runAttempts" value="5" min="1" max="20" style="width:80px"></div>
-        <div class="checkbox-row"><input type="checkbox" id="runNoLlm"><label for="runNoLlm">纯规则模式 (--no-llm)</label></div>
-        <div id="runModeHint" style="font-size:11px;color:var(--green);padding:4px 0">
-          🐳 Docker 可用 — 将在容器中运行
-        </div>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-primary" onclick="runPreflightCheck()">🔍 前置检测</button>
-          <button class="btn" onclick="startAgent()" id="startBtn">▶ 启动</button>
-        </div>
-      </div>
-      <div id="checkResults" style="margin-top:10px"></div>
-    </div>
-  `;
-}
-
-async function runPreflightCheck() {
-  const box = document.getElementById('checkResults');
-  box.innerHTML = '<p style="color:var(--text-dim);font-size:13px">⏳ 检测中…</p>';
-
-  try {
-    const resp = await fetch('/api/check');
-    const data = await resp.json();
-
-    let html = `<div style="margin-top:6px;font-size:12px">
-      <div style="display:flex;gap:12px;margin-bottom:8px;flex-wrap:wrap">
-        <span style="color:${data.ok ? 'var(--green)' : 'var(--red)'};font-weight:600">
-          ${data.ok ? '✅ 全部通过' : '❌ 存在未通过项'}
-        </span>
-        <span>通过 ${data.summary.passed}/${data.summary.total}</span>
-        <span style="color:var(--red)">错误 ${data.summary.errors}</span>
-        <span style="color:var(--yellow)">警告 ${data.summary.warnings}</span>
-      </div>`;
-
-    data.checks.forEach(c => {
-      const icon = c.ok ? '✅' : (c.severity === 'warning' ? '⚠️' : '❌');
-      const color = c.ok ? 'var(--green)' : (c.severity === 'warning' ? 'var(--yellow)' : 'var(--red)');
-      html += `<div style="display:flex;align-items:baseline;gap:6px;padding:4px 0;border-bottom:1px solid var(--border)">
-        <span>${icon}</span>
-        <span style="font-weight:500;min-width:100px">${c.name}</span>
-        <span style="color:${color};flex:1">${c.value}</span>
-        ${c.hint ? `<span style="color:var(--text-dim);font-size:11px">💡 ${c.hint}</span>` : ''}
-      </div>`;
-    });
-    html += '</div>';
-
-    // Update run mode hint based on Docker check
-    const dockerCheck = data.checks.find(c => c.name === 'Docker 环境');
-    const hint = document.getElementById('runModeHint');
-    if (hint && dockerCheck) {
-      if (dockerCheck.ok) {
-        hint.innerHTML = '🐳 Docker 可用 — 将在容器中运行';
-        hint.style.color = 'var(--green)';
-      } else {
-        hint.innerHTML = '💻 Docker 不可用 — 将在宿主机运行';
-        hint.style.color = 'var(--yellow)';
-      }
-    }
-
-    box.innerHTML = html;
-  } catch (e) {
-    box.innerHTML = `<p style="color:var(--red);font-size:13px">检测失败: ${e.message}</p>`;
-  }
-}
-
-async function startAgent() {
-  const payload = {
-    cves: document.getElementById('runCves').value,
-    kernel_version: document.getElementById('runKernel').value,
-    max_attempts: parseInt(document.getElementById('runAttempts').value) || 5,
-    no_llm: document.getElementById('runNoLlm').checked,
-  };
-  try {
-    const resp = await fetch('/api/run', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    const data = await resp.json();
-    if (data.error) {
-      showToast('错误: ' + data.error, 'error');
-    } else {
-      const mode = data.mode || 'host';
-      const modeIcon = mode === 'Docker' ? '🐳' : '💻';
-      showToast(modeIcon + ' Agent 已启动 (' + mode + '模式), 工作目录: ' + data.workdir, 'success');
-      document.getElementById('runFormContainer').innerHTML = '';
-    }
-  } catch (e) {
-    showToast('启动失败: ' + e.message, 'error');
-  }
-}
-
-async function stopAgent() {
-  if (!confirm('确定停止当前运行的 Agent？')) return;
-  try {
-    const resp = await fetch('/api/stop', { method: 'POST' });
-    const data = await resp.json();
-    showToast('Agent ' + data.status, data.status === 'stopped' ? 'success' : '');
-  } catch (e) {
-    showToast('停止失败: ' + e.message, 'error');
-  }
-}
-
-async function scanWorkdir() {
-  try {
-    const resp = await fetch('/api/scan', { method: 'POST' });
-    const data = await resp.json();
-    if (data.status === 'ok') {
-      showToast('已扫描: ' + data.workdir, 'success');
-    } else {
-      showToast(data.error || '扫描失败', 'error');
-    }
-  } catch (e) {
-    showToast('扫描失败: ' + e.message, 'error');
-  }
-}
-
-async function runHeaderCheck() {
-  const bar = document.getElementById('headerCheckBar');
-  bar.style.display = 'block';
-  bar.innerHTML = '<span style="font-size:12px;color:var(--text-dim)">⏳ 环境检测中…</span>';
-  try {
-    const resp = await fetch('/api/check');
-    const data = await resp.json();
-
-    const cls = data.ok ? 'all-pass' : (data.summary.warnings > 0 ? 'has-warnings' : 'has-errors');
-    const icon = data.ok ? '✅' : (data.summary.warnings > 0 ? '⚠️' : '❌');
-    bar.className = 'check-bar ' + cls;
-    bar.innerHTML = `
-      <span style="font-weight:600">${icon} 环境检测</span>
-      <span>通过 ${data.summary.passed}/${data.summary.total}</span>
-      ${data.summary.errors > 0 ? `<span style="color:var(--red)">❌ ${data.summary.errors} 个错误</span>` : ''}
-      ${data.summary.warnings > 0 ? `<span style="color:var(--yellow)">⚠️ ${data.summary.warnings} 个警告</span>` : ''}
-      <span style="font-size:11px;color:var(--text-dim)">点击查看详情</span>
-    `;
-    bar.onclick = () => {
-      showRunForm();
-      runPreflightCheck();
-      document.querySelector('[data-tab=dashboard]').click();
-    };
-  } catch (e) {
-    bar.innerHTML = `<span style="font-size:12px;color:var(--red)">检测失败: ${e.message}</span>`;
-  }
-}
-
-// ===== Trace / Pipeline Chain =====
-function populateTraceSelector(cves) {
-  const sel = document.getElementById('traceCveSelect');
-  if (!sel) return;
-  const current = sel.value;
-  sel.innerHTML = '';
-  (cves || []).forEach(c => {
-    const opt = document.createElement('option');
-    opt.value = c.cve_id;
-    opt.textContent = c.cve_id + ' (' + (c.state || '?') + ')';
-    sel.appendChild(opt);
-  });
-  if (current && [...sel.options].some(o => o.value === current)) {
-    sel.value = current;
-  }
-}
-
-async function loadTrace() {
-  const sel = document.getElementById('traceCveSelect');
-  if (!sel || !sel.value) return;
-  await loadTraceForCve(sel.value);
-}
-
-async function loadTraceForCve(cveId) {
-  const cont = document.getElementById('traceContent');
-  cont.innerHTML = '<p style="color:var(--text-dim);font-size:13px;padding:20px">⏳ 加载链路…</p>';
-
-  try {
-    const respTrace = await fetch(`/api/cve/${cveId}/trace`);
-    const trace = await respTrace.json();
-
-    const respCve = await fetch(`/api/cve/${cveId}`);
-    const detail = await respCve.json();
-
-    let html = '<div style="margin-bottom:12px;display:flex;gap:16px;flex-wrap:wrap;font-size:12px">';
-    if (trace.failure && trace.failure.reason_code) {
-      const f = trace.failure;
-      html += `<span>❌ 失败原因: <strong>${f.reason_code}</strong> (${f.category})</span>`;
-      html += `<span>可重试: ${f.retryable ? '✅' : '❌'}</span>`;
-      html += `<span>严重程度: ${f.severity}</span>`;
-    }
-    html += `<span>流水线阶段: <strong>${trace.stages}</strong></span>`;
-    html += `<span>RAG 查询: <strong>${trace.rag_query_count}</strong></span>`;
-    html += `<span>重试次数: <strong>${trace.attempts ? trace.attempts.length : 0}</strong></span>`;
-    html += '</div>';
-
-    // Timeline
-    html += '<div class="trace-timeline">';
-    (trace.timeline || []).forEach(stage => {
-      const cls = stage.type || 'transition';
-      const badge = stage.rag_involved ? '🧠 RAG' : stage.type;
-      html += `<div class="trace-stage ${cls}" onclick="this.classList.toggle('open')">
-        <div class="ts-header">
-          <span class="ts-label">${stage.from} → ${stage.to}</span>
-          <span>
-            <span class="ts-badge ${cls}">${badge}</span>
-            ${stage.duration_s ? `<span class="ts-duration">${stage.duration_s}s</span>` : ''}
-          </span>
-        </div>
-        <div class="ts-reason">${stage.reason || ''}</div>
-        <div class="ts-detail">`;
-      if (stage.rag_involved) {
-        html += '<div style="color:var(--purple);font-weight:500;margin-bottom:4px">🧠 此阶段涉及 RAG 知识检索</div>';
-      }
-      html += `<div style="color:var(--text-dim)">时间: ${stage.timestamp || '-'}</div>`;
-      html += '</div></div>';
-    });
-    html += '</div>';
-
-    // RAG traces
-    if (trace.rag_traces && trace.rag_traces.length > 0) {
-      html += '<h3 style="font-size:14px;margin:12px 0 8px">🧠 RAG 知识检索记录</h3>';
-      trace.rag_traces.forEach((rt, ri) => {
-        html += `<div class="rag-card">
-          <div class="rag-query">#${ri + 1} 查询: "${rt.query}" (${rt.source})</div>
-          <div style="color:var(--text-dim);font-size:10px">${rt.timestamp}</div>
-          <div style="margin-top:4px">`;
-        (rt.results || []).forEach(chunk => {
-          const tags = (chunk.tags || []).join(', ');
-          html += `<div class="rag-chunk">
-            <div class="rag-chunk-id">${chunk.type}: ${chunk.title || chunk.chunk_id} ${tags ? ' [' + tags + ']' : ''}</div>
-            <div class="rag-chunk-snippet">${chunk.snippet || ''}</div>
-          </div>`;
-        });
-        html += '</div></div>';
-      });
-    }
-
-    // Patches
-    if (detail.patches && Object.keys(detail.patches).length > 0) {
-      html += '<h3 style="font-size:14px;margin:12px 0 8px">📄 补丁文件</h3>';
-      for (const [name, content] of Object.entries(detail.patches)) {
-        html += `<div style="margin-bottom:6px"><strong style="font-size:12px">${name}</strong></div>`;
-        html += `<pre>${escapeHtml(content.slice(0, 1500))}</pre>`;
-      }
-    }
-
-    cont.innerHTML = html;
-  } catch (e) {
-    cont.innerHTML = `<p style="color:var(--red);font-size:13px">加载失败: ${e.message}</p>`;
-  }
-}
-
-// ===== SSE Events =====
-function connectSSE() {
-  const evtSource = new EventSource('/api/events');
-  let pendingData = null;
-  let updateTimer = null;
-
-  function flushUpdate() {
-    if (!pendingData) return;
-    updateTimer = null;
-    const data = pendingData;
-    pendingData = null;
-    stateCache = data;
-    gentleUpdate(data);
-  }
-
-  evtSource.onmessage = function(event) {
-    try {
-      const data = JSON.parse(event.data);
-      if (data._ts || data.cves) {
-        pendingData = data;
-        if (!updateTimer) {
-          updateTimer = setTimeout(flushUpdate, 600);
-        }
-      }
-    } catch (e) {
-      // ignore keepalive or parse errors
-    }
-  };
-
-  evtSource.onerror = function() {
-    // Will auto-reconnect
-  };
-}
-
-function gentleUpdate(data) {
-  updateHeader(data);
-  renderStats(data);
-  populateTraceSelector(data.cves || []);
-
-  // Build active state map for pipeline
-  const stateMap = {};
-  (data.cves || []).forEach(c => {
-    const st = c.state || 'TaskCreated';
-    if (!stateMap[st]) {
-      stateMap[st] = { count: 0, status: null };
-    }
-    stateMap[st].count++;
-    if (c.status === 'success') stateMap[st].status = 'success';
-    else if (c.status === 'failed') stateMap[st].status = 'failed';
-    else if (c.status === 'skipped') stateMap[st].skipped = true;
-    else stateMap[st].status = 'active';
-    if (c.status === 'success' || c.status === 'failed' || c.status === 'skipped' || c.status === 'manual_required') {
-      let found = false;
-      PIPELINE_STATES.forEach(ps => {
-        if (ps.id === st) found = true;
-        if (found && !stateMap[ps.id]) {
-          stateMap[ps.id] = { count: 0, done: true };
-        }
-      });
-    }
-  });
-  gentlePipeline(stateMap);
-  gentleCards(data.cves || []);
-
-  document.getElementById('lastUpdate').textContent = '更新于 ' + new Date().toLocaleTimeString();
-}
-
-function gentlePipeline(activeStates) {
-  const el = document.getElementById('pipelineFlow');
-  // First render: build from scratch
-  if (!el.children.length) {
-    renderPipeline(activeStates);
-    return;
-  }
-  // Subsequent: just update CSS classes and labels
-  el.querySelectorAll('.pipeline-node').forEach((node, i) => {
-    const stateId = PIPELINE_STATES[i] && PIPELINE_STATES[i].id;
-    if (!stateId) return;
-    const box = node.querySelector('.node-box');
-    const label = node.querySelector('.node-label');
-    if (!box) return;
-    const info = activeStates[stateId];
-    box.classList.remove('active', 'done', 'failed', 'skipped');
-    if (info) {
-      if (info.status === 'success' || info.done) box.classList.add('done');
-      else if (info.status === 'failed' || info.failed) box.classList.add('failed');
-      else if (info.skipped) box.classList.add('skipped');
-      else box.classList.add('active');
-    }
-    if (label && info) {
-      label.textContent = info.count > 0 ? `${info.count} CVE` : '';
-    }
-  });
-}
-
-function gentleCards(cves) {
-  const grid = document.getElementById('cveGrid');
-  // First render
-  if (!grid.children.length || grid.children.length === 1 && grid.children[0].tagName === 'DIV' && !grid.children[0].classList.contains('cve-card')) {
-    renderCveCards(cves);
-    triggerStagger();
-    return;
-  }
-  // Diff-based update
-  const existing = {};
-  grid.querySelectorAll('.cve-card').forEach(el => {
-    const id = el.dataset.cveId;
-    if (id) existing[id] = el;
+  // Progress dots
+  var passed={};(c.events||[]).forEach(function(ev){passed[ev.from]=1;passed[ev.to]=1;});
+  var dots='';
+  STAGE_ORDER.forEach(function(sid){
+    if(passed[sid])dots+='<span class="sd ok" title="'+sid+'"></span>';
+    else if(sid===state)dots+='<span class="sd act" title="'+sid+'"></span>';
+    else dots+='<span class="sd pending" title="'+sid+'"></span>';
   });
 
-  const newIds = {};
-  (cves || []).forEach(c => { newIds[c.cve_id] = c; });
-
-  // Remove stale
-  Object.keys(existing).forEach(id => {
-    if (!newIds[id]) {
-      existing[id].style.transition = 'opacity 0.2s ease, transform 0.2s ease';
-      existing[id].style.opacity = '0';
-      existing[id].style.transform = 'translateY(-4px)';
-      setTimeout(() => existing[id].remove(), 250);
-      delete existing[id];
-    }
-  });
-
-  // Add/update
-  (cves || []).forEach((c, idx) => {
-    const existingCard = existing[c.cve_id];
-    if (existingCard) {
-      // Update in-place — only refresh inner content
-      const state = c.state || 'unknown';
-      const status = c.status || 'no_data';
-      let stateClass = 'state-running';
-      if (status === 'success') stateClass = 'state-success';
-      else if (status === 'failed') stateClass = 'state-failed';
-      else if (status === 'manual_required') stateClass = 'state-manual_required';
-      else if (status === 'skipped') stateClass = 'state-skipped';
-      else if (status === 'idle' || status === 'no_data') stateClass = 'state-idle';
-      existingCard.className = `cve-card ${stateClass}`;
-      existingCard.dataset.cveId = c.cve_id;
-
-      let badgeClass = 'badge-idle';
-      if (status === 'success') badgeClass = 'badge-success';
-      else if (status === 'failed') badgeClass = 'badge-failed';
-      else if (status === 'manual_required') badgeClass = 'badge-manual';
-      else if (status === 'skipped') badgeClass = 'badge-skipped';
-      else badgeClass = 'badge-running';
-
-      let stagesHtml = '';
-      const events = c.events || [];
-      if (events.length > 0) {
-        stagesHtml = '<div class="cve-stages">';
-        events.forEach(ev => {
-          const dotClass = ev.from === 'PatchApplied' && ev.to === 'ReportWritten' ? 'fail'
-            : ev.to === 'ReportWritten' ? 'ok'
-            : ev.from === 'BuildFailed' ? 'fail'
-            : ev.to === 'Verified' ? 'ok'
-            : 'active';
-          const reason = (ev.reason || '').slice(0, 50);
-          stagesHtml += `<div class="cve-stage">
-            <span class="stage-dot ${dotClass}"></span>
-            <span class="stage-from">${ev.from}</span>
-            <span class="stage-arrow">→</span>
-            <span class="stage-to">${ev.to}</span>
-            <span class="stage-reason" title="${ev.reason || ''}">${reason}</span>
-          </div>`;
-        });
-        stagesHtml += '</div>';
-      }
-      const errorMsg = c.error ? c.error.slice(0, 80) : '';
-      existingCard.innerHTML = `
-        <div class="cve-header">
-          <span class="cve-id">${c.cve_id}</span>
-          <span class="cve-state ${badgeClass}">${state}${status ? ' · ' + status : ''}</span>
-        </div>
-        <div class="cve-detail">
-          <span>尝试: ${c.attempt}/${c.max_attempts}</span>
-          <span>${c.has_artifact ? '✅ 有 .ko' : ''}</span>
-          <span>${errorMsg ? '⚠️ ' + errorMsg : ''}</span>
-        </div>
-        ${stagesHtml}
-      `;
-      existingCard.onclick = () => openDetail(c.cve_id);
-    } else {
-      // New card — use existing createCard path
-      const card = createCveCard(c, idx);
-      card.classList.add('stagger-fade');
-      card.style.transitionDelay = `${idx * 30}ms`;
-      grid.appendChild(card);
-      setTimeout(() => { card.classList.add('visible'); }, 100 + idx * 30);
-    }
-  });
-}
-
-// Build a single CVE card DOM element (extracted from renderCveCards)
-function createCveCard(c, idx) {
-  const card = document.createElement('div');
-  const state = c.state || 'unknown';
-  const status = c.status || 'no_data';
-  let stateClass = 'state-running';
-  if (status === 'success') stateClass = 'state-success';
-  else if (status === 'failed') stateClass = 'state-failed';
-  else if (status === 'manual_required') stateClass = 'state-manual_required';
-  else if (status === 'skipped') stateClass = 'state-skipped';
-  else if (status === 'idle' || status === 'no_data') stateClass = 'state-idle';
-  card.className = `cve-card ${stateClass}`;
-  card.dataset.cveId = c.cve_id;
-  let badgeClass = 'badge-idle';
-  if (status === 'success') badgeClass = 'badge-success';
-  else if (status === 'failed') badgeClass = 'badge-failed';
-  else if (status === 'manual_required') badgeClass = 'badge-manual';
-  else if (status === 'skipped') badgeClass = 'badge-skipped';
-  else badgeClass = 'badge-running';
-  let stagesHtml = '';
-  const events = c.events || [];
-  if (events.length > 0) {
-    stagesHtml = '<div class="cve-stages">';
-    events.forEach(ev => {
-      const dotClass = ev.from === 'PatchApplied' && ev.to === 'ReportWritten' ? 'fail'
-        : ev.to === 'ReportWritten' ? 'ok'
-        : ev.from === 'BuildFailed' ? 'fail'
-        : ev.to === 'Verified' ? 'ok'
-        : 'active';
-      const reason = (ev.reason || '').slice(0, 50);
-      stagesHtml += `<div class="cve-stage">
-        <span class="stage-dot ${dotClass}"></span>
-        <span class="stage-from">${ev.from}</span>
-        <span class="stage-arrow">→</span>
-        <span class="stage-to">${ev.to}</span>
-        <span class="stage-reason" title="${ev.reason || ''}">${reason}</span>
-      </div>`;
-    });
-    stagesHtml += '</div>';
-  }
-  const errorMsg = c.error ? c.error.slice(0, 80) : '';
-  card.innerHTML = `
-    <div class="cve-header">
-      <span class="cve-id">${c.cve_id}</span>
-      <span class="cve-state ${badgeClass}">${state}${status ? ' · ' + status : ''}</span>
-    </div>
-    <div class="cve-detail">
-      <span>尝试: ${c.attempt}/${c.max_attempts}</span>
-      <span>${c.has_artifact ? '✅ 有 .ko' : ''}</span>
-      <span>${errorMsg ? '⚠️ ' + errorMsg : ''}</span>
-    </div>
-    ${stagesHtml}
-  `;
-  card.onclick = () => openDetail(c.cve_id);
+  var errorMsg=c.error?c.error.slice(0,80):'';
+  card.innerHTML='<div class="cve-top"><span class="cve-id">'+c.cve_id+'</span>'+
+    '<span class="cve-state-tag '+tagCls+'">'+state+(status?' · '+status:'')+'</span></div>'+
+    '<div class="cve-meta"><span>尝试/Attempts: '+c.attempt+'/'+c.max_attempts+'</span>'+
+    (c.has_artifact?'<span>✅ .ko</span>':'')+'</div>'+
+    (errorMsg?'<div class="cve-error">⚠️ '+escapeHtml(errorMsg)+'</div>':'')+
+    '<div class="cve-stage-bar">'+dots+'</div>';
+  card.onclick=function(){openDetail(c.cve_id)};
   return card;
 }
 
-// ===== Stagger Reveal =====
-function triggerStagger() {
-  const items = document.querySelectorAll('.stagger-fade:not(.visible)');
-  items.forEach(el => {
-    const delay = parseInt(el.style.transitionDelay) || 0;
-    setTimeout(() => el.classList.add('visible'), 50 + delay);
+// ===== Stats =====
+function renderStats(data){
+  var cves=data.cves||[];
+  document.getElementById('statTotal').textContent=cves.length;
+  document.getElementById('statSuccess').textContent=cves.filter(function(c){return c.status==='success'}).length;
+  document.getElementById('statFailed').textContent=cves.filter(function(c){return c.status==='failed'}).length;
+  document.getElementById('statManual').textContent=cves.filter(function(c){return c.status==='manual_required'}).length;
+  document.getElementById('statSkipped').textContent=cves.filter(function(c){return c.status==='skipped'}).length;
+  document.getElementById('statKernel').textContent=data.kernel_version||'-';
+}
+
+// ===== Status Header =====
+function updateHeader(data){
+  var dot=document.getElementById('statusDot'),txt=document.getElementById('statusText');
+  var s=data.status||'no_data';dot.className='status-dot '+s;
+  if(s==='running')txt.textContent='运行中 / Running';
+  else if(s==='idle')txt.textContent='就绪 / Idle';
+  else if(s==='completed')txt.textContent='已完成 / Completed';
+  else txt.textContent='无数据 / No data';
+}
+
+// ===== Gentle Update =====
+function gentleUpdate(data){
+  updateHeader(data);renderStats(data);
+  var stateMap={};
+  (data.cves||[]).forEach(function(c){
+    var st=c.state||'TaskCreated';
+    if(!stateMap[st])stateMap[st]={count:0,status:null};
+    stateMap[st].count++;
+    if(c.status==='success')stateMap[st].status='success';
+    else if(c.status==='failed')stateMap[st].status='failed';
+    else if(c.status==='skipped')stateMap[st].skipped=true;
+    else stateMap[st].status='active';
+    if(c.status==='success'||c.status==='failed'||c.status==='skipped'||c.status==='manual_required'){
+      var found=false;
+      PIPELINE_GRID.forEach(function(ps){
+        if(ps.id===st)found=true;
+        if(found&&!stateMap[ps.id])stateMap[ps.id]={count:0,done:true};
+      });
+    }
   });
+  renderPipeline(stateMap);
+  stateMapFull=stateMap;
+  var fg=document.getElementById('pipelineGridFull');if(fg&&fg.children.length)fullPipelineUpdate();
+  var grid=document.getElementById('cveGrid');
+  if(!grid.children.length||grid.children.length===1&&!grid.children[0].classList.contains('cve-card')){
+    grid.innerHTML='';
+    (data.cves||[]).forEach(function(c,i){
+      var card=createCveCard(c);card.classList.add('stagger-fade');
+      card.style.transitionDelay=(i*30)+'ms';grid.appendChild(card);
+      setTimeout(function(){card.classList.add('visible')},50+i*30);
+    });
+  }else{
+    var existing={};grid.querySelectorAll('.cve-card').forEach(function(el){var id=el.dataset.cveId;if(id)existing[id]=el});
+    var newIds={};(data.cves||[]).forEach(function(c){newIds[c.cve_id]=c});
+    Object.keys(existing).forEach(function(id){if(!newIds[id]){existing[id].remove();delete existing[id]}});
+    (data.cves||[]).forEach(function(c,i){
+      if(existing[c.cve_id]){
+        var card=existing[c.cve_id],state=c.state||'unknown',status=c.status||'no_data';
+        var sc='state-running';
+        if(status==='success')sc='state-success';else if(status==='failed')sc='state-failed';
+        else if(status==='manual_required')sc='state-manual';else if(status==='skipped')sc='state-skipped';
+        else if(status==='idle'||status==='no_data')sc='state-idle';
+        card.className='cve-card '+sc;card.dataset.cveId=c.cve_id;
+        var tc='tag-running';
+        if(status==='success')tc='tag-success';else if(status==='failed')tc='tag-failed';
+        else if(status==='manual_required')tc='tag-manual';else if(status==='skipped')tc='tag-skipped';
+        else tc='tag-idle';
+        var passed2={};(c.events||[]).forEach(function(ev){passed2[ev.from]=1;passed2[ev.to]=1});
+        var dots2='';STAGE_ORDER.forEach(function(sid){
+          if(passed2[sid])dots2+='<span class="sd ok" title="'+sid+'"></span>';
+          else if(sid===state)dots2+='<span class="sd act" title="'+sid+'"></span>';
+          else dots2+='<span class="sd pending" title="'+sid+'"></span>';
+        });
+        var err=c.error?c.error.slice(0,80):'';
+        card.innerHTML='<div class="cve-top"><span class="cve-id">'+c.cve_id+'</span>'+
+          '<span class="cve-state-tag '+tc+'">'+state+(status?' · '+status:'')+'</span></div>'+
+          '<div class="cve-meta"><span>尝试/Attempts: '+c.attempt+'/'+c.max_attempts+'</span>'+
+          (c.has_artifact?'<span>✅ .ko</span>':'')+'</div>'+
+          (err?'<div class="cve-error">⚠️ '+escapeHtml(err)+'</div>':'')+
+          '<div class="cve-stage-bar">'+dots2+'</div>';
+      }else{var card=createCveCard(c);card.classList.add('stagger-fade');card.style.transitionDelay=(i*30)+'ms';grid.appendChild(card);setTimeout(function(){card.classList.add('visible')},50+i*30)}
+    });
+  }
+  document.getElementById('lastUpdate').textContent='更新 / Updated: '+new Date().toLocaleTimeString();
+}
+
+// ===== HTTP Polling =====
+function pollStatus(){
+  fetch('/api/status').then(function(r){return r.json()}).then(function(data){
+    stateCache=data;
+    gentleUpdate(data);
+  }).catch(function(){});
+  _pollTimer=setTimeout(pollStatus,3000);
+}
+
+function loadDefaultCves(){
+  fetch('/api/cves/default').then(function(r){return r.json()}).then(function(cves){
+    var data={status:'idle',workdir:null,cve_count:cves.length,cves:cves,max_attempts:5,created_at:'',_ts:Date.now()/1000};
+    stateCache=data;
+    gentleUpdate(data);
+  }).catch(function(){});
+}
+
+// ===== CVE Detail =====
+function openDetail(cveId){
+  currentDetail=cveId;
+  document.getElementById('detailOverlay').classList.add('open');
+  document.getElementById('detailPanel').classList.add('open');
+  document.getElementById('detailTitle').textContent=cveId;
+  document.querySelectorAll('.dtab').forEach(function(t){t.classList.remove('active')});
+  document.querySelectorAll('.dtab-content').forEach(function(c){c.classList.remove('active')});
+  var ft=document.querySelector('.dtab');if(ft)ft.classList.add('active');
+  document.getElementById('dtab-overview').classList.add('active');
+  loadOverview(cveId);loadFailure(cveId);loadPatches(cveId);loadLogs(cveId);loadFiles(cveId);
+}
+function closeDetail(){
+  document.getElementById('detailOverlay').classList.remove('open');
+  document.getElementById('detailPanel').classList.remove('open');
+  currentDetail=null;
+}
+// Detail tab switch
+document.addEventListener('click',function(e){
+  var tab=e.target.closest('.dtab');
+  if(!tab||!tab.dataset.dtab)return;
+  document.querySelectorAll('.dtab,.dtab-content').forEach(function(el){el.classList.remove('active')});
+  tab.classList.add('active');
+  var c=document.getElementById('dtab-'+tab.dataset.dtab);
+  if(c)c.classList.add('active');
+});
+
+function loadOverview(cveId){
+  var el=document.getElementById('dtab-overview');el.innerHTML='<p style="color:var(--text-dim)">⏳ 加载中 / Loading…</p>';
+  fetch('/api/cve/'+cveId).then(function(r){return r.json()}).then(function(data){
+    var html='';
+    if(data.metadata&&Object.keys(data.metadata).length){
+      var nvd=data.metadata.nvd||{};
+      html+='<div class="detail-section"><h4>CVE 元数据 / Metadata</h4>';
+      html+='<div><strong>ID:</strong> '+(nvd.id||cveId)+'</div>';
+      html+='<div><strong>描述 / Desc:</strong> '+escapeHtml((nvd.description||'').slice(0,300))+'</div>';
+      if(nvd.metrics&&nvd.metrics.cvssMetricV31){var cv=nvd.metrics.cvssMetricV31[0];if(cv.cvssData)html+='<div><strong>CVSS:</strong> '+cv.cvssData.baseScore+' ('+cv.cvssData.baseSeverity+')</div>'}
+      html+='</div>';
+    }
+    // Timeline from stateCache
+    var tml='<div class="detail-section"><h4>阶段时间线 / Timeline</h4>';
+    var cve=null;(stateCache.cves||[]).forEach(function(c){if(c.cve_id===cveId)cve=c});
+    if(cve&&cve.events&&cve.events.length){
+      cve.events.forEach(function(ev){
+        tml+='<div class="trace-mini-item"><span class="trace-mini-dot" style="background:'+(ev.to==='BuildFailed'||ev.to==='Failed'?'var(--red)':ev.to==='Verified'?'var(--green)':'var(--yellow)')+'"></span>'+
+          '<span>'+escapeHtml(ev.from||'')+' → '+escapeHtml(ev.to||'')+'</span></div>';
+      });
+    }else tml+='<span style="color:var(--text-dim)">暂无事件 / No events</span>';
+    tml+='</div>';
+    el.innerHTML=html+tml;
+  }).catch(function(e){el.innerHTML='<p style="color:var(--red)">Error: '+e.message+'</p>'});
+}
+function loadFailure(cveId){
+  var el=document.getElementById('dtab-failure');el.innerHTML='<p style="color:var(--text-dim)">⏳ 加载中 / Loading…</p>';
+  fetch('/api/cve/'+cveId+'/trace').then(function(r){return r.json()}).then(function(trace){
+    var html='';
+    if(trace.failure&&trace.failure.reason_code){
+      var f=trace.failure;
+      html+='<div class="failure-card"><strong>❌ '+escapeHtml(f.reason_code)+'</strong><br>';
+      html+='<span>类别 / Category: '+escapeHtml(f.category||'')+'</span> · <span>严重度 / Severity: '+escapeHtml(f.severity||'')+'</span> · <span>可重试 / Retryable: '+(f.retryable?'✅':'❌')+'</span>';
+      if(f.summary)html+='<br><span style="color:var(--text-dim)">'+escapeHtml(f.summary)+'</span></div>';
+    }else html+='<div class="detail-section"><p style="color:var(--text-dim)">暂无失败记录 / No failure data</p></div>';
+    if(trace.attempts&&trace.attempts.length){
+      html+='<div class="detail-section"><h4>尝试记录 / Attempts</h4>';
+      trace.attempts.forEach(function(a){html+='<div class="attempt-item">#'+a.attempt_index+' 策略/Strategy: '+(a.strategy||'—')+' '+(a.success?'✅':'❌')+(a.failure_code?' 原因/Reason: '+escapeHtml(a.failure_code):'')+'</div>'});
+      html+='</div>';
+    }
+    if(trace.timeline&&trace.timeline.length){
+      html+='<div class="detail-section"><h4>阶段链 / Stage Chain</h4>';
+      trace.timeline.forEach(function(st){
+        html+='<div class="trace-mini-item"><span class="trace-mini-dot" style="background:'+(st.type==='build_failure'?'var(--red)':st.type==='rewrite'?'var(--purple)':st.type==='classify'?'var(--yellow)':'var(--green)')+'"></span>'+
+          '<span>'+escapeHtml(st.from||'')+' → '+escapeHtml(st.to||'')+'</span>'+(st.duration_s?' <span style="color:var(--text-dimmer);font-size:10px">'+st.duration_s+'s</span>':'')+'</div>';
+      });
+      html+='</div>';
+    }
+    if(trace.rag_query_count>0)html+='<div class="detail-section"><span style="color:var(--purple)">🧠 RAG 查询 / RAG Queries: '+trace.rag_query_count+'</span></div>';
+    el.innerHTML=html;
+  }).catch(function(e){el.innerHTML='<p style="color:var(--red)">Error: '+e.message+'</p>'});
+}
+function loadPatches(cveId){
+  var el=document.getElementById('dtab-patches');el.innerHTML='<p style="color:var(--text-dim)">⏳ 加载中 / Loading…</p>';
+  fetch('/api/cve/'+cveId).then(function(r){return r.json()}).then(function(data){
+    if(data.patches&&Object.keys(data.patches).length){
+      var html='';
+      Object.keys(data.patches).forEach(function(name){html+='<div style="margin-bottom:4px"><strong style="font-size:12px">'+escapeHtml(name)+'</strong></div><pre>'+escapeHtml(data.patches[name].slice(0,3000))+'</pre>'});
+      el.innerHTML=html;
+    }else el.innerHTML='<p style="color:var(--text-dim)">暂无补丁 / No patches</p>';
+  }).catch(function(e){el.innerHTML='<p style="color:var(--red)">Error: '+e.message+'</p>'});
+}
+function loadLogs(cveId){
+  var el=document.getElementById('dtab-logs');el.innerHTML='<p style="color:var(--text-dim)">⏳ 加载中 / Loading…</p>';
+  fetch('/api/cve/'+cveId+'/files').then(function(r){return r.json()}).then(function(data){
+    var logs=data.files.filter(function(f){return f.path.indexOf('logs/')>=0});
+    if(!logs.length){el.innerHTML='<p style="color:var(--text-dim)">暂无日志 / No logs</p>';return}
+    logs.sort(function(a,b){return a.path.localeCompare(b.path)});
+    var html='<div style="margin-bottom:6px"><select id="logSelect" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:12px" onchange="loadSelectedLog(\''+cveId+'\')">';
+    logs.forEach(function(l){html+='<option value="'+escapeHtml(l.path)+'">'+escapeHtml(l.path)+' ('+l.size+'B)</option>'});
+    html+='</select></div><div id="logViewer"><div class="log-box">选择日志 / Select a log</div></div>';
+    el.innerHTML=html;
+  }).catch(function(e){el.innerHTML='<p style="color:var(--red)">Error: '+e.message+'</p>'});
+}
+function loadSelectedLog(cveId){
+  var sel=document.getElementById('logSelect');if(!sel)return;
+  var viewer=document.getElementById('logViewer');viewer.innerHTML='<div class="log-box">⏳ 加载中 / Loading…</div>';
+  var m=sel.value.match(/build_(\d+)\.log/),attempt=m?parseInt(m[1]):1;
+  fetch('/api/logs/'+cveId+'/'+attempt).then(function(r){return r.json()}).then(function(data){
+    if(data.content)viewer.innerHTML='<div class="log-box">'+escapeHtml(data.content.slice(-40000))+'</div>';
+    else viewer.innerHTML='<div class="log-box">'+(data.error||'Empty')+'</div>';
+  }).catch(function(e){viewer.innerHTML='<div class="log-box" style="color:var(--red)">'+e.message+'</div>'});
+}
+function loadFiles(cveId){
+  var el=document.getElementById('dtab-files');el.innerHTML='<p style="color:var(--text-dim)">⏳ 加载中 / Loading…</p>';
+  fetch('/api/cve/'+cveId+'/files').then(function(r){return r.json()}).then(function(data){
+    if(!data.files||!data.files.length){el.innerHTML='<p style="color:var(--text-dim)">暂无文件 / No files</p>';return}
+    var html='<div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">共 / Total: '+data.count+' 个文件</div>';
+    data.files.forEach(function(f){
+      var icon='📄';if(f.ext==='.log')icon='📋';else if(f.ext==='.patch')icon='🩹';else if(f.ext==='.ko')icon='🔧';
+      html+='<div class="file-item"><span class="fname">'+icon+' '+escapeHtml(f.path)+'</span><span class="fsize">'+(f.size>1024?(f.size/1024).toFixed(1)+'KB':f.size+'B')+'</span>'+
+        (f.preview?'<span class="fpreview" onclick="var p=this.parentNode.nextElementSibling;if(p)p.style.display=p.style.display===\'block\'?\'none\':\'block\'">预览 / Preview</span>':'')+'</div>'+
+        (f.preview?'<pre style="display:none;margin:2px 0 8px;max-height:120px;overflow:auto;font-size:10px">'+escapeHtml(f.preview)+'</pre>':'');
+    });
+    el.innerHTML=html;
+  }).catch(function(e){el.innerHTML='<p style="color:var(--red)">Error: '+e.message+'</p>'});
+}
+
+// ===== Run Form =====
+function showRunForm(){
+  var cont=document.getElementById('runFormContainer');
+  if(cont.innerHTML){cont.innerHTML='';return}
+  cont.innerHTML='<div class="run-form"><h3>▶ 启动新 Agent / Start New Agent</h3><div class="form-row">'+
+    '<div><label>CVE 文件 / File</label><input type="text" id="runCves" value="sample_cves.txt" style="width:140px"></div>'+
+    '<div><label>内核版本 / Kernel</label><input type="text" id="runKernel" value="6.6.102-5.2.an23.x86_64" style="width:180px"></div>'+
+    '<div><label>最大尝试 / Max Attempts</label><input type="number" id="runAttempts" value="5" min="1" max="20" style="width:70px"></div>'+
+    '<div class="checkbox-row"><input type="checkbox" id="runNoLlm"><label for="runNoLlm" style="font-size:11px">纯规则 / Rule Only</label></div>'+
+    '<div style="display:flex;gap:8px"><button class="btn btn-primary" onclick="startAgent()">▶ 启动 / Start</button>'+
+    '<button class="btn" onclick="runPreflightCheck()">🔍 检测 / Check</button></div></div>'+
+    '<div id="checkResults" style="margin-top:8px"></div></div>';
+}
+function startAgent(){
+  var p={cves:document.getElementById('runCves').value,kernel_version:document.getElementById('runKernel').value,
+    max_attempts:parseInt(document.getElementById('runAttempts').value)||5,no_llm:document.getElementById('runNoLlm').checked};
+  fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)})
+  .then(function(r){return r.json()}).then(function(d){if(d.error)showToast('Error: '+d.error,'error');else{showToast('已启动 / Started ('+(d.mode||'host')+')','success');document.getElementById('runFormContainer').innerHTML=''}})
+  .catch(function(e){showToast('Failed: '+e.message,'error')});
+}
+function stopAgent(){
+  if(!confirm('确定停止？/ Confirm stop?'))return;
+  fetch('/api/stop',{method:'POST'}).then(function(r){return r.json()}).then(function(d){showToast('Agent '+d.status,d.status==='stopped'?'success':'')}).catch(function(e){showToast('Error: '+e.message,'error')});
+}
+function scanWorkdir(){
+  fetch('/api/scan',{method:'POST'}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok')showToast('已扫描 / Scanned: '+d.workdir,'success');else showToast(d.error||'Failed','error')}).catch(function(e){showToast('Error: '+e.message,'error')});
+}
+function runPreflightCheck(){
+  var box=document.getElementById('checkResults');box.innerHTML='<span style="font-size:12px;color:var(--text-dim)">⏳ 检测中 / Checking…</span>';
+  fetch('/api/check').then(function(r){return r.json()}).then(function(d){
+    var html='<div style="font-size:11px;margin:6px 0">'+(d.ok?'✅':'❌')+' '+d.summary.passed+'/'+d.summary.total+(d.summary.errors?' <span style="color:var(--red)">❌ '+d.summary.errors+'</span>':'')+(d.summary.warnings?' <span style="color:var(--yellow)">⚠️ '+d.summary.warnings+'</span>':'')+'</div>';
+    d.checks.forEach(function(c){html+='<div style="display:flex;gap:6px;padding:3px 0;font-size:11px;border-bottom:1px solid var(--border)"><span>'+(c.ok?'✅':'❌')+'</span><span style="min-width:90px">'+escapeHtml(c.name)+'</span><span style="color:'+(c.ok?'var(--green)':'var(--red)')+';flex:1">'+escapeHtml(c.value)+'</span></div>'});
+    box.innerHTML=html;
+  }).catch(function(e){box.innerHTML='<span style="color:var(--red);font-size:12px">Error: '+e.message+'</span>'});
+}
+function runHeaderCheck(){
+  var bar=document.getElementById('headerCheckBar');bar.style.display='block';bar.innerHTML='<span style="font-size:11px;color:var(--text-dim)">⏳ 检测中 / Checking…</span>';
+  fetch('/api/check').then(function(r){return r.json()}).then(function(d){
+    bar.innerHTML=(d.ok?'✅':'❌')+' 环境 / Env: '+d.summary.passed+'/'+d.summary.total+(d.summary.errors?' ❌ '+d.summary.errors:'')+' <span style="font-size:10px;color:var(--text-dim)">点击详情 / Click</span>';
+    bar.onclick=function(){showRunForm();runPreflightCheck()};
+  }).catch(function(e){bar.innerHTML='<span style="color:var(--red)">Error: '+e.message+'</span>'});
+}
+function cleanKernelSrc(){
+  if(!confirm('⚠️ 清理内核源码将执行 make mrproper + defconfig。继续？/ Clean kernel source tree?'))return;
+  showToast('🧹 清理中 / Cleaning…','');
+  fetch('/api/clean-kernel-src',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})
+  .then(function(r){return r.json()}).then(function(d){
+    if(d.error){
+      if(d.needs_path){var msg='候选目录 / Candidates:\n'+d.candidates.join('\n');showToast('请指定路径 / Specify path','error');alert(msg)}
+      else showToast('Error: '+d.error,'error');
+    }else showToast('🧹 已开始后台清理 / Cleaning started','success');
+  }).catch(function(e){showToast('Error: '+e.message,'error')});
+}
+
+// ===== Tab Switching =====
+document.querySelectorAll('.tab').forEach(function(tab){
+  tab.addEventListener('click',function(){
+    document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active')});
+    document.querySelectorAll('.tab-content').forEach(function(c){c.classList.remove('active')});
+    tab.classList.add('active');
+    document.getElementById('tab-'+tab.dataset.tab).classList.add('active');
+    // Lazy-load tab-specific content
+    if(tab.dataset.tab==='pipeline')fullPipelineUpdate();
+    if(tab.dataset.tab==='env')loadEnvTab();
+    if(tab.dataset.tab==='trace')loadTrace();
+  });
+});
+
+function fullPipelineUpdate(){
+  var grid=document.getElementById('pipelineGridFull');if(!grid)return;
+  grid.innerHTML='';
+  PIPELINE_GRID.forEach(function(s){
+    var cell=document.createElement('div');cell.className='pg-node';
+    var info=stateMapFull&&stateMapFull[s.id];
+    if(info){
+      if(info.status==='success'||info.done)cell.classList.add('done');
+      else if(info.status==='failed')cell.classList.add('failed');
+      else if(info.skipped)cell.classList.add('skipped');
+      else cell.classList.add('active');
+    }
+    cell.innerHTML='<div class="pg-count">'+(info?info.count:0)+'</div><div class="pg-label">'+s.cn+'<br>'+s.label+'</div>';
+    grid.appendChild(cell);
+  });
+}
+var stateMapFull=null;
+
+function loadEnvTab(){
+  fetch('/api/environment').then(function(r){return r.json()}).then(function(data){
+    var grid=document.getElementById('envGrid');if(!grid)return;
+    var html='';
+    Object.keys(data).forEach(function(k){
+      var v=data[k];
+      if(v===null||v===undefined)return;
+      html+='<div class="env-item"><div class="env-key">'+k+'</div><div class="env-val">'+escapeHtml(typeof v==='string'?v:JSON.stringify(v))+'</div></div>';
+    });
+    grid.innerHTML=html||'<p style="color:var(--text-dim);grid-column:1/-1">无环境数据 / No env data</p>';
+  }).catch(function(){});
+}
+
+function loadTrace(){
+  var sel=document.getElementById('traceCveSelect');if(!sel)return;
+  // Populate dropdown on first call
+  if(sel.options.length===0&&stateCache.cves){
+    stateCache.cves.forEach(function(c){var o=document.createElement('option');o.value=c.cve_id;o.textContent=c.cve_id;sel.appendChild(o)});
+  }
+  var cveId=sel.value;if(!cveId)return;
+  var cont=document.getElementById('traceContent');cont.innerHTML='<p style="color:var(--text-dim)">⏳ 加载中 / Loading…</p>';
+
+  // Load trace + CVE detail in parallel
+  Promise.all([
+    fetch('/api/cve/'+cveId+'/trace').then(function(r){return r.json()}),
+    fetch('/api/cve/'+cveId).then(function(r){return r.json()})
+  ]).then(function(res){
+    var trace=res[0],detail=res[1];
+    var html='';
+
+    // Summary bar
+    html+='<div style="margin-bottom:12px;display:flex;gap:12px;flex-wrap:wrap;font-size:12px">';
+    if(trace.failure&&trace.failure.reason_code){
+      var f=trace.failure;
+      html+='<span>❌ 失败原因 / Failure: <strong>'+escapeHtml(f.reason_code)+'</strong> ('+escapeHtml(f.category||'')+')</span>';
+      html+='<span>可重试 / Retryable: '+(f.retryable?'✅':'❌')+'</span>';
+      html+='<span>严重程度 / Severity: '+escapeHtml(f.severity||'')+'</span>';
+    }
+    html+='<span>流水线阶段 / Stages: <strong>'+escapeHtml(trace.stages||'')+'</strong></span>';
+    html+='<span>RAG 查询 / RAG Queries: <strong>'+(trace.rag_query_count||0)+'</strong></span>';
+    html+='<span>重试次数 / Retries: <strong>'+(trace.attempts?trace.attempts.length:0)+'</strong></span>';
+    html+='</div>';
+
+    // Timeline (clickable to see details)
+    if(trace.timeline&&trace.timeline.length){
+      html+='<div class="trace-timeline">';
+      trace.timeline.forEach(function(st){
+        var cls='trace-stage '+(st.type||'transition');
+        var badge=st.rag_involved?'🧠 RAG':(st.type||'transition');
+        html+='<div class="'+cls+'" onclick="this.classList.toggle(\'open\')">'+
+          '<div class="ts-header"><span class="ts-label">'+escapeHtml(st.from||'')+' → '+escapeHtml(st.to||'')+'</span>'+
+          '<span><span class="ts-badge '+escapeHtml(st.type||'transition')+'">'+escapeHtml(badge)+'</span>'+
+          (st.duration_s?'<span class="ts-duration" style="margin-left:4px">⏱ '+st.duration_s+'s</span>':'')+'</span></div>'+
+          (st.reason?'<div class="ts-reason">'+escapeHtml(st.reason)+'</div>':'')+
+          '<div class="ts-detail">'+
+          (st.rag_involved?'<div style="color:var(--purple);font-weight:500;margin-bottom:4px">🧠 此阶段涉及 RAG 知识检索</div>':'')+
+          '<div style="color:var(--text-dim)">时间 / Time: '+escapeHtml(st.timestamp||'-')+'</div></div></div>';
+      });
+      html+='</div>';
+    }else if(trace.failure&&trace.failure.reason_code){
+      html+='<div class="trace-stage build_failure"><div class="ts-header"><span class="ts-label">❌ '+escapeHtml(trace.failure.reason_code)+'</span><span class="ts-badge build_failure">failure</span></div>'+
+        (trace.failure.summary?'<div class="ts-reason">'+escapeHtml(trace.failure.summary)+'</div>':'')+'</div>';
+    }else html+='<p style="color:var(--text-dim)">暂无链路数据 / No trace data</p>';
+
+    // RAG traces
+    if(trace.rag_traces&&trace.rag_traces.length){
+      html+='<h3 style="font-size:14px;margin:16px 0 8px">🧠 RAG 知识检索记录 / RAG Records</h3>';
+      trace.rag_traces.forEach(function(rt,ri){
+        html+='<div class="rag-card"><div class="rag-query">#'+(ri+1)+' 查询 / Query: "'+escapeHtml(rt.query)+'" ('+escapeHtml(rt.source)+')</div>'+
+          '<div style="color:var(--text-dim);font-size:10px">'+escapeHtml(rt.timestamp)+'</div><div style="margin-top:4px">';
+        (rt.results||[]).forEach(function(chunk){
+          var tags=(chunk.tags||[]).join(', ');
+          html+='<div class="rag-chunk"><div class="rag-chunk-id">'+escapeHtml(chunk.type||'')+': '+escapeHtml(chunk.title||chunk.chunk_id||'')+(tags?' ['+escapeHtml(tags)+']':'')+'</div>'+
+            (chunk.snippet?'<div class="rag-chunk-snippet">'+escapeHtml(chunk.snippet)+'</div>':'')+'</div>';
+        });
+        html+='</div></div>';
+      });
+    }
+
+    // Patches
+    if(detail.patches&&Object.keys(detail.patches).length){
+      html+='<h3 style="font-size:14px;margin:16px 0 8px">📄 补丁文件 / Patch Files</h3>';
+      Object.keys(detail.patches).forEach(function(name){
+        html+='<div style="margin-bottom:4px"><strong style="font-size:12px">'+escapeHtml(name)+'</strong></div>';
+        html+='<pre>'+escapeHtml(detail.patches[name].slice(0,1500))+'</pre>';
+      });
+    }
+
+    cont.innerHTML=html;
+  }).catch(function(e){cont.innerHTML='<p style="color:var(--red)">Error: '+e.message+'</p>'});
 }
 
 // ===== Init =====
-connectSSE();
-renderEnv();
+// First try loading real data, fallback to default CVE list
+fetch('/api/status').then(function(r){return r.json()}).then(function(data){
+  if(data.cves&&data.cves.length){stateCache=data;gentleUpdate(data)}
+  else loadDefaultCves();
+}).catch(function(){loadDefaultCves()});
+_pollTimer=setTimeout(pollStatus,3000);
 </script>
 </body>
 </html>

@@ -1,0 +1,11 @@
+kpatch-build: building livepatch for CVE-2025-21799
+Patch: CVE-2025-21799_net_ethernet_ti_am65cpsw_fix_freein.patch
+Applying patch...
+git apply --check: OK
+git apply: OK
+Patch applied cleanly
+Building patched kernel...
+Build patched: OK
+Extracting changed objects...
+Warning: Modified function 'am65_cpsw_nuss_remove_tx_chns' is __init/__devinit
+kpatch-build: FAILED: modified functions must not be __init/__devinit

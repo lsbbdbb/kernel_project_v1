@@ -1,5 +1,6 @@
 """State Manager - maintains state.json and run_config.json per v1.md design."""
 import json
+import shutil
 import os
 import datetime
 from datetime import timezone
@@ -120,6 +121,12 @@ class StateManager:
         path = os.path.join(self.workdir, cve_id, subdir)
         os.makedirs(path, exist_ok=True)
         return path
+    def reset_cve(self, cve_id: str) -> Dict:
+        """Reset a CVE to TaskCreated by removing and re-initializing its state."""
+        cve_dir = os.path.join(self.workdir, cve_id)
+        if os.path.isdir(cve_dir):
+            shutil.rmtree(cve_dir)
+        return self.init_cve_state(cve_id)
 
     @staticmethod
     def _write_json(path: str, data: Any):

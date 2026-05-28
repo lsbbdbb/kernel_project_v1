@@ -1,5 +1,6 @@
 """Web control panel for kernel-livepatch-agent."""
 import os
+import shutil
 import json
 import queue
 import threading
@@ -136,9 +137,8 @@ def _scan_workdir(workdir: str) -> Dict:
             "attempt": state.get("attempt", 0),
             "max_attempts": state.get("max_attempts", 5),
             "error": state.get("last_error"),
-            "events": events[-20:],  # last 20 events
+            "events": events[-20:],
             "failure": failure,
-            "report": report,
             "patches": patches,
             "has_artifact": has_ko,
             "updated_at": state.get("updated_at", ""),
@@ -155,6 +155,33 @@ def _scan_workdir(workdir: str) -> Dict:
     }
     _WORKDIR_CACHE[cache_key] = result
     return result
+
+
+def _load_default_cves() -> list:
+    """Load CVE IDs from sample_cves.txt when no workdir exists."""
+    cves_file = os.path.join(os.getcwd(), "sample_cves.txt")
+    if not os.path.isfile(cves_file):
+        return []
+    cve_ids = []
+    with open(cves_file) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#"):
+                cve_ids.append(line)
+    return [{
+        "cve_id": cve_id,
+        "state": "TaskCreated",
+        "status": None,
+        "attempt": 0,
+        "max_attempts": 5,
+        "error": None,
+        "events": [],
+        "failure": {},
+        "report": {},
+        "patches": [],
+        "has_artifact": False,
+        "updated_at": "",
+    } for cve_id in cve_ids]
 
 
 def _status_from_cves(cves: list) -> str:
@@ -184,7 +211,16 @@ def api_status():
     if _workdir is None:
         _workdir = _find_latest_workdir()
     if _workdir is None:
-        return jsonify({"status": "no_data", "workdir": None, "cves": []})
+        default_cves = _load_default_cves()
+        return jsonify({
+            "status": "idle",
+            "workdir": None,
+            "cve_count": len(default_cves),
+            "cves": default_cves,
+            "max_attempts": 5,
+            "created_at": "",
+            "run_active": False,
+        })
 
     data = _scan_workdir(_workdir)
     status = _status_from_cves(data["cves"])
@@ -199,9 +235,15 @@ def api_cves():
     if _workdir is None:
         _workdir = _find_latest_workdir()
     if _workdir is None:
-        return jsonify([])
+        return jsonify(_load_default_cves())
     data = _scan_workdir(_workdir)
     return jsonify(data["cves"])
+
+
+@app.route("/api/cves/default")
+def api_cves_default():
+    """Return default CVE list from sample_cves.txt (no workdir needed)."""
+    return jsonify(_load_default_cves())
 
 
 @app.route("/api/cve/<cve_id>")
@@ -267,6 +309,53 @@ def api_cve_detail(cve_id):
         "metadata": meta,
         "change_units": cu,
     })
+
+
+@app.route("/api/cve/<cve_id>/files")
+def api_cve_files(cve_id):
+    """List all output files for a CVE with sizes and previews."""
+    global _workdir
+    if _workdir is None:
+        _workdir = _find_latest_workdir()
+    if _workdir is None:
+        return jsonify({"error": "No workdir"}), 404
+
+    cve_dir = os.path.join(_workdir, cve_id)
+    if not os.path.isdir(cve_dir):
+        return jsonify({"error": f"CVE {cve_id} not found"}), 404
+
+    files = []
+    seen_paths = set()
+
+    # Walk the CVE directory collecting files
+    for root, dirs, fnames in os.walk(cve_dir):
+        # Skip __pycache__
+        dirs[:] = [d for d in dirs if d != "__pycache__"]
+        for fn in sorted(fnames):
+            fp = os.path.join(root, fn)
+            rel = os.path.relpath(fp, cve_dir)
+            if rel in seen_paths:
+                continue
+            seen_paths.add(rel)
+            try:
+                st = os.stat(fp)
+                ext = os.path.splitext(fn)[1].lower()
+                preview = ""
+                if st.st_size < 50000 and ext in (".json", ".txt", ".log", ".patch", ".md", ".yaml", ".yml"):
+                    with open(fp, "rb") as fh:
+                        raw = fh.read()
+                    preview = raw[:2000].decode("utf-8", errors="replace")
+                files.append({
+                    "path": rel,
+                    "size": st.st_size,
+                    "mtime": datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).isoformat(),
+                    "ext": ext,
+                    "preview": preview,
+                })
+            except Exception:
+                pass
+
+    return jsonify({"cve_id": cve_id, "files": files, "count": len(files)})
 
 
 @app.route("/api/cve/<cve_id>/trace")
@@ -460,6 +549,73 @@ def api_environment():
 
 
 # ---------------------------------------------------------------------------
+# Clean kernel source
+# ---------------------------------------------------------------------------
+
+@app.route("/api/clean-kernel-src", methods=["POST"])
+def api_clean_kernel_src():
+    """Clean kernel source tree (make mrproper + defconfig) for a fresh demo."""
+    data = request.get_json(silent=True) or {}
+    kernel_src = data.get("kernel_src") or os.getenv("KERNEL_SRC", "")
+
+    if not kernel_src or not os.path.isdir(kernel_src):
+        # Auto-detect: scan for kernel dirs
+        candidates = []
+        for d in sorted(os.listdir(".")):
+            if (d.startswith("acceptance_vm_") or d.startswith("build_")) and \
+               os.path.isdir(d) and os.path.isfile(os.path.join(d, "Makefile")):
+                candidates.append(os.path.abspath(d))
+        version_noarch = "6.6.102-5.2.an23"
+        candidate2 = f"kernel-src/linux-{version_noarch}.x86_64"
+        if os.path.isdir(candidate2) and os.path.isfile(os.path.join(candidate2, "Makefile")):
+            candidates.append(os.path.abspath(candidate2))
+        env_src = os.getenv("KERNEL_SRC", "")
+        if env_src and os.path.isdir(env_src) and os.path.isfile(os.path.join(env_src, "Makefile")):
+            candidates.insert(0, os.path.abspath(env_src))
+        if not candidates:
+            return jsonify({"error": "无法自动检测内核源码目录 / Could not auto-detect kernel source dir"}), 404
+        return jsonify({
+            "needs_path": True,
+            "candidates": candidates,
+            "message": "请指定 kernel_src 参数 / Please specify kernel_src parameter",
+        })
+
+    def _clean_worker(path):
+        try:
+            # Step 1: make mrproper
+            subprocess.run(
+                ["make", "-C", path, "mrproper"],
+                capture_output=True, text=True, timeout=600,
+            )
+            # Step 2: make defconfig
+            subprocess.run(
+                ["make", "-C", path, "defconfig"],
+                capture_output=True, text=True, timeout=600,
+            )
+            # Step 3: touch syncconfig sentinel
+            auto_conf = os.path.join(path, "include/config/auto.conf")
+            os.makedirs(os.path.dirname(auto_conf), exist_ok=True)
+            for f in [auto_conf, auto_conf + ".cmd"]:
+                with open(f, "a"):
+                    os.utime(f, None)
+            return {"status": "done", "path": path}
+        except subprocess.TimeoutExpired:
+            return {"status": "error", "error": "操作超时 / Operation timed out (300s)"}
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+
+    thread = threading.Thread(
+        target=lambda: _event_queue.put({
+            "type": "clean_result",
+            "result": _clean_worker(kernel_src),
+        }),
+        daemon=True,
+    )
+    thread.start()
+    return jsonify({"status": "running", "path": kernel_src})
+
+
+# ---------------------------------------------------------------------------
 # Pre-flight checks
 # ---------------------------------------------------------------------------
 
@@ -639,13 +795,38 @@ def api_events():
         # Send initial snapshot
         if _workdir is None:
             _workdir = _find_latest_workdir()
-        data = _scan_workdir(_workdir) if _workdir else {"status": "no_data"}
+        if _workdir:
+            data = _scan_workdir(_workdir)
+        else:
+            default_cves = _load_default_cves()
+            data = {
+                "status": "idle",
+                "workdir": None,
+                "cve_count": len(default_cves),
+                "cves": default_cves,
+                "max_attempts": 5,
+                "created_at": "",
+                "_ts": time.time(),
+            }
         yield f"data: {json.dumps(data, default=str)}\n\n"
 
         # Then poll for changes
         last_cached = _WORKDIR_CACHE.get(_workdir or "", {}).get("_ts", 0)
         while True:
             time.sleep(3)
+
+            # Check event queue for non-status events (clean_result, etc.)
+            clean_event = None
+            while not _event_queue.empty():
+                try:
+                    evt = _event_queue.get_nowait()
+                    if evt.get("type") == "clean_result":
+                        clean_event = evt["result"]
+                except queue.Empty:
+                    break
+            if clean_event:
+                yield f"data: {json.dumps({'type': 'clean_result', 'result': clean_event}, default=str)}\n\n"
+
             if _workdir:
                 try:
                     data = _scan_workdir(_workdir)
@@ -656,6 +837,10 @@ def api_events():
                         yield f"data: {json.dumps(data, default=str)}\n\n"
                 except Exception:
                     pass
+            else:
+                # Always send default CVEs so the UI stays populated
+                default_cves = _load_default_cves()
+                yield f"data: {json.dumps({'status': 'idle', 'workdir': None, 'cve_count': len(default_cves), 'cves': default_cves, '_ts': time.time()}, default=str)}\n\n"
             yield ": keepalive\n\n"
 
     return Response(
@@ -770,6 +955,54 @@ def api_stop():
         return jsonify({"status": "stopped"})
     return jsonify({"status": "not_running"})
 
+
+@app.route("/api/reset", methods=["POST"])
+def api_reset():
+    """Reset CVE state to re-demonstrate the fix flow.
+
+    Body (JSON, optional):
+      - cve_id: str | "all" - specific CVE to reset, or "all" for all.
+        Defaults to "all".
+
+    Refuses while agent is running (409).
+    """
+    global _run_thread, _workdir, _WORKDIR_CACHE
+
+    if _run_thread and _run_thread.is_alive():
+        return jsonify({"error": "Agent is running, stop it first"}), 409
+
+    data = request.get_json(silent=True) or {}
+    cve_id = data.get("cve_id", "all")
+
+    if _workdir is None:
+        _workdir = _find_latest_workdir()
+    if _workdir is None:
+        return jsonify({"error": "No workdir found"}), 404
+
+    try:
+        sm = StateManager(_workdir)
+        run_config = sm.get_run_config()
+        all_cve_ids = run_config.get("cve_ids", [])
+
+        if cve_id == "all":
+            reset_ids = all_cve_ids
+        elif cve_id in all_cve_ids:
+            reset_ids = [cve_id]
+        else:
+            return jsonify({"error": f"CVE {cve_id} not found in workdir"}), 404
+
+        for cid in reset_ids:
+            sm.reset_cve(cid)
+
+        _WORKDIR_CACHE.pop(_workdir, None)
+
+        return jsonify({
+            "status": "ok",
+            "reset": reset_ids,
+            "count": len(reset_ids),
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/scan", methods=["POST"])
 def api_scan():
