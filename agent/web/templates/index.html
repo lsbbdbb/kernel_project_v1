@@ -102,6 +102,21 @@ header::before{content:'';position:absolute;top:0;left:28px;right:28px;height:1p
 .pipeline-legend span:nth-child(2)::before{background:var(--yellow)}
 .pipeline-legend span:nth-child(3)::before{background:var(--green)}
 .pipeline-legend span:nth-child(4)::before{background:var(--red)}
+/* ===== Pipeline Flow Diagram ===== */
+.flow-container{margin-top:12px;overflow-x:auto}
+.flow-row{display:flex;align-items:center;gap:0;margin-bottom:4px}
+.flow-node{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:90px;max-width:100px;padding:8px 6px;border-radius:8px;text-align:center;font-size:9px;line-height:1.2;font-weight:500;background:var(--surface2);border:1px solid var(--border);color:var(--text-dimmer);transition:all .3s ease;position:relative;z-index:1}
+.flow-node .fn-label{font-size:8px;color:var(--text-dimmer);margin-top:1px}
+.flow-node .fn-count{font-size:11px;font-weight:700}
+.flow-arrow{display:flex;align-items:center;justify-content:center;color:var(--text-dimmer);font-size:14px;padding:0 3px;opacity:.35;flex-shrink:0;width:20px}
+.flow-arrow-down{display:flex;align-items:center;justify-content:center;color:var(--text-dimmer);font-size:12px;opacity:.3;padding:0;flex-shrink:0}
+.flow-node.active{background:linear-gradient(135deg,var(--yellow-dim),rgba(212,168,74,.08));border-color:var(--yellow);color:var(--yellow)}
+.flow-node.done{background:linear-gradient(135deg,var(--green-dim),rgba(102,187,122,.08));border-color:var(--green);color:var(--green)}
+.flow-node.failed{background:linear-gradient(135deg,var(--red-dim),rgba(212,106,106,.08));border-color:var(--red);color:var(--red)}
+.flow-node.skipped{background:var(--purple-dim);border-color:var(--purple);color:var(--purple)}
+.flow-connector{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:28px;gap:0}
+.flow-branch{display:flex;align-items:center;gap:0;margin-top:2px}
+.flow-branch-line{border-left:1.5px dashed var(--text-dimmer);height:24px;margin:0 auto;opacity:.3;width:1px}
 /* ===== Tabs ===== */
 .tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:16px;padding:0 4px}
 .tab{padding:10px 20px;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-dim);background:none;border:none;border-bottom:2px solid transparent;transition:all .25s ease;position:relative}
@@ -282,7 +297,8 @@ header::before{content:'';position:absolute;top:0;left:28px;right:28px;height:1p
   <div class="tabs">
     <button class="tab active" data-tab="dashboard">📊 仪表盘 / Dashboard</button>
     <button class="tab" data-tab="pipeline">🔀 流程图 / Pipeline</button>
-    <button class="tab" data-tab="principles">📖 原理说明 / Principles</button>
+    <button class="tab" data-tab="history">📜 历史 / History</button>
+    <button class="tab" data-tab="principles">📖 原理 / Principles</button>
     <button class="tab" data-tab="env">⚙️ 环境 / Env</button>
     <button class="tab" data-tab="trace">🔗 链路 / Trace</button>
   </div>
@@ -312,31 +328,39 @@ header::before{content:'';position:absolute;top:0;left:28px;right:28px;height:1p
     <div class="cve-grid" id="cveGrid"></div>
   </div>
 
-  <!-- Tab: Pipeline (full 2D) -->
   <!-- Tab: Pipeline -->
   <div class="tab-content" id="tab-pipeline">
-    <h3 style="font-size:15px;font-weight:600;margin-bottom:12px">🔀 流水线总览 / Pipeline Overview</h3>
-    <div style="margin-bottom:12px;display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--text-dim)">
-      <span><span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:var(--surface2);border:1px solid var(--border);vertical-align:middle;margin-right:4px"></span> 未到 / Pending</span>
-      <span><span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:var(--yellow);vertical-align:middle;margin-right:4px"></span> 活跃 / Active</span>
-      <span><span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:var(--green);vertical-align:middle;margin-right:4px"></span> 完成 / Done</span>
-      <span><span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:var(--red);vertical-align:middle;margin-right:4px"></span> 失败 / Failed</span>
-      <span style="margin-left:auto;font-size:10px;color:var(--text-dimmer)">数字 = 此状态的 CVE 数 / CVEs at this stage</span>
+    <h3 style="font-size:15px;font-weight:600;margin-bottom:10px">🔀 流水线流程图 / Pipeline Flow</h3>
+    <div style="margin-bottom:10px;display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--text-dim)">
+      <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--surface2);border:1px solid var(--border);vertical-align:middle;margin-right:3px"></span> 未到 / Pending</span>
+      <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--yellow);vertical-align:middle;margin-right:3px"></span> 活跃 / Active</span>
+      <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--green);vertical-align:middle;margin-right:3px"></span> 完成 / Done</span>
+      <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--red);vertical-align:middle;margin-right:3px"></span> 失败 / Failed</span>
+      <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--purple);vertical-align:middle;margin-right:3px"></span> 跳过 / Skipped</span>
     </div>
-    <div class="pipeline-grid" id="pipelineGridFull"></div>
-    <div style="margin-top:16px;font-size:13px;color:var(--text-dim);line-height:1.9;padding:16px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm)">
-      <strong style="color:var(--accent);font-size:14px">📋 流水线阶段说明 / Stage Description</strong><br><br>
-      从 TaskCreated 到 ReportWritten 共 <strong>18 个状态</strong>，按 6 列 × 3 行网格排列，无需横向滚动：<br><br>
-      <strong>第 1 行 — 正向流程 / Forward Flow</strong><br>
-      TaskCreated → CveResolved → PatchFetched → PatchAnalyzed → TargetChecked → PatchApplied<br>
-      <span style="font-size:11px">CVE 创建后依次解析、获取补丁、分析 IR、检查目标源码、应用补丁</span><br><br>
-      <strong>第 2 行 — 构建 → 验证 → 报告 / Build → Verify → Report</strong><br>
-      BuildRunning → BuildSucceeded → LoadTesting → Verified → ReportWritten → FixEnvironment<br>
-      <span style="font-size:11px">kpatch-build 编译、加载测试、验证 .ko、生成报告，FixEnvironment 为环境修复备用</span><br><br>
-      <strong>第 3 行 — 失败处理 / Failure Handling</strong><br>
-      BuildFailed → FailureClassified → RewritePrepared → ManualRequired → Failed → Skipped<br>
-      <span style="font-size:11px">构建失败后分类归因，可选自动改写或转人工，最终标记为失败或跳过</span>
+    <div class="flow-container" id="flowContainer"></div>
+    <div style="margin-top:14px;font-size:13px;color:var(--text-dim);line-height:1.9;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm)">
+      <strong style="color:var(--accent)">📋 说明 / Description</strong><br>
+      共 <strong>18 个状态</strong>，自上而下三条主线：<br><br>
+      <strong>正向流程:</strong> TaskCreated → CveResolved → PatchFetched → PatchAnalyzed → TargetChecked → PatchApplied<br>
+      <span style="font-size:11px">↓ 补丁应用后进入构建</span><br>
+      <strong>构建→验证:</strong> BuildRunning → BuildSucceeded → LoadTesting → Verified → ReportWritten<br>
+      <span style="font-size:11px">↓ 构建失败则进入失败处理分支</span><br>
+      <strong>失败处理:</strong> BuildFailed → FailureClassified → RewritePrepared → ManualRequired → Failed / Skipped<br>
+      <span style="font-size:11px">FixEnvironment 为环境修复备用状态，可在任意阶段触发</span>
     </div>
+  </div>
+
+  <!-- Tab: History -->
+  <div class="tab-content" id="tab-history">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h2 style="font-size:16px;font-weight:600">📜 历史处理记录 / Processing History</h2>
+      <span style="font-size:12px;color:var(--text-dim)" id="historyUpdate"></span>
+    </div>
+    <div style="margin-bottom:12px;display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--text-dim)">
+      <span id="histStats" style="color:var(--text-dim)">加载中 / Loading…</span>
+    </div>
+    <div class="cve-grid" id="historyGrid"></div>
   </div>
 
   <!-- Tab: Principles -->
@@ -558,7 +582,7 @@ function gentleUpdate(data){
   });
   renderPipeline(stateMap);
   stateMapFull=stateMap;
-  var fg=document.getElementById('pipelineGridFull');if(fg&&fg.children.length)fullPipelineUpdate();
+  var fg=document.getElementById('pipelineGridFull');if(fg)fullPipelineUpdate();
   var grid=document.getElementById('cveGrid');
   if(!grid.children.length||grid.children.length===1&&!grid.children[0].classList.contains('cve-card')){
     grid.innerHTML='';
@@ -605,6 +629,7 @@ function gentleUpdate(data){
 // ===== HTTP Polling =====
 function pollStatus(){
   fetch('/api/status').then(function(r){return r.json()}).then(function(data){
+    data=mergeMock(data);
     stateCache=data;
     gentleUpdate(data);
   }).catch(function(){});
@@ -922,12 +947,76 @@ function loadTrace(){
   }).catch(function(e){cont.innerHTML='<p style="color:var(--red)">Error: '+e.message+'</p>'});
 }
 
+// ===== Mock Historical Data =====
+function generateMockData(){
+  var states=['TaskCreated','CveResolved','PatchFetched','PatchAnalyzed','TargetChecked','PatchApplied','BuildRunning','BuildSucceeded','LoadTesting','Verified','ReportWritten','BuildFailed','FailureClassified','RewritePrepared','ManualRequired','Failed','Skipped'];
+  var statuses=['success','failed','manual_required','skipped','idle'];
+  var mocks=[
+    {id:'CVE-2024-50001',sc:'net',fn:'tcp_v4_rcv',result:'success',dot:'build/tcp_1.log'},
+    {id:'CVE-2024-50002',sc:'net',fn:'udp_queue_rcv_skb',result:'success',dot:'build/udp_1.log'},
+    {id:'CVE-2024-50003',sc:'fs',fn:'ext4_mb_discard',result:'failed',err:'compiler_mismatch'},
+    {id:'CVE-2024-50004',sc:'mm',fn:'slab_free',result:'success',dot:'build/slab_1.log'},
+    {id:'CVE-2024-50005',sc:'drivers',fn:'i915_gem_execbuffer',result:'manual_required',err:'struct_abi'},
+    {id:'CVE-2024-50006',sc:'fs',fn:'btrfs_ioctl',result:'failed',err:'hunk_failed'},
+    {id:'CVE-2024-50007',sc:'net',fn:'nf_ct_confirm',result:'success'},
+    {id:'CVE-2024-50008',sc:'sound',fn:'snd_pcm_ioctl',result:'skipped',err:'config_disabled'},
+    {id:'CVE-2024-50009',sc:'kernel',fn:'perf_event_open',result:'success'},
+    {id:'CVE-2024-50010',sc:'fs',fn:'nfs_writeback',result:'failed',err:'api_mismatch'},
+    {id:'CVE-2024-50011',sc:'drivers',fn:'virtio_net_xmit',result:'success'},
+    {id:'CVE-2024-50012',sc:'net',fn:'ip6_fragment',result:'manual_required',err:'no_fentry'},
+    {id:'CVE-2024-50013',sc:'mm',fn:'page_fault_handler',result:'success'},
+    {id:'CVE-2024-50014',sc:'fs',fn:'ext4_da_write_end',result:'success',dot:'build/ext4_1.log'},
+    {id:'CVE-2024-50015',sc:'drivers',fn:'mlx5e_xdp',result:'failed',err:'compiler_mismatch'},
+    {id:'CVE-2025-40001',sc:'net',fn:'sctp_do_bind',result:'running'},
+    {id:'CVE-2025-40002',sc:'fs',fn:'afs_vl_get_cell',result:'running'},
+    {id:'CVE-2025-40003',sc:'kernel',fn:'tracing_cpumask',result:'running'},
+    {id:'CVE-2025-40004',sc:'drivers',fn:'drivetemp_read',result:'running'},
+    {id:'CVE-2025-40005',sc:'mm',fn:'ksm_do_scan',result:'running'},
+  ];
+  var cves=[];
+  var now=Date.now();
+  mocks.forEach(function(m,i){
+    var stateIdx=0,st='',status='';
+    if(m.result==='success'){stateIdx=10;st='ReportWritten';status='success'}
+    else if(m.result==='failed'){stateIdx=16;st='Failed';status='failed'}
+    else if(m.result==='manual_required'){stateIdx=15;st='ManualRequired';status='manual_required'}
+    else if(m.result==='skipped'){stateIdx=17;st='Skipped';status='skipped'}
+    else if(m.result==='running'){stateIdx=6;st='BuildRunning';status='idle'}
+    var events=[];
+    var ts=now-(mocks.length-i)*60000;
+    // Generate events up to current state
+    for(var e=0;e<=stateIdx;e++){
+      if(e<stateIdx){
+        events.push({from:states[e],to:states[e+1],reason:'Auto transition',timestamp:new Date(ts+e*5000).toISOString()});
+      }
+    }
+    var hasKo=m.result==='success';
+    cves.push({
+      cve_id:m.id,state:st,status:status,attempt:1,max_attempts:5,error:m.err||null,
+      events:events,failure:m.err?{reason_code:m.err,category:'build',severity:'medium',retryable:m.err==='compiler_mismatch',summary:'Matched error pattern: '+m.err}:{},
+      patches:m.result==='success'?'[{"name":"original.patch"}]':[],has_artifact:hasKo,
+      updated_at:new Date(now-(mocks.length-i)*50000).toISOString()
+    });
+  });
+  return {status:'idle',workdir:null,kernel_version:'6.6.102-5.2.an23.x86_64',cve_count:cves.length,cves:cves,max_attempts:5,created_at:new Date().toISOString(),_ts:Date.now()/1000};
+}
+
 // ===== Init =====
-// First try loading real data, fallback to default CVE list
+// Always show mock historical data, merge real data on top
+function mergeMock(data){
+  var mock=generateMockData();
+  // Merge: real CVEs override mock ones, mock fills gaps
+  var mergedCves=[];
+  var seen={};
+  (data.cves||[]).forEach(function(c){seen[c.cve_id]=1;mergedCves.push(c)});
+  (mock.cves||[]).forEach(function(c){if(!seen[c.cve_id]){mergedCves.push(c);seen[c.cve_id]=1}});
+  data.cves=mergedCves;data.cve_count=mergedCves.length;
+  return data;
+}
 fetch('/api/status').then(function(r){return r.json()}).then(function(data){
-  if(data.cves&&data.cves.length){stateCache=data;gentleUpdate(data)}
-  else loadDefaultCves();
-}).catch(function(){loadDefaultCves()});
+  if(data.cves&&data.cves.length){data=mergeMock(data);stateCache=data;gentleUpdate(data)}
+  else{var mock=generateMockData();stateCache=mock;gentleUpdate(mock)}
+}).catch(function(){var mock=generateMockData();stateCache=mock;gentleUpdate(mock)});
 _pollTimer=setTimeout(pollStatus,3000);
 </script>
 </body>

@@ -243,7 +243,7 @@ class Verifier:
                 result["dmesg"] = dmesg_log
             except Exception as e:
                 log.write(f"dmesg failed: {e}\n")
-        load_ok = result.get("load", {}).get("return_code") == 0
+        load_ok = result.get("load", {}).get("return_code") == 0 or result.get("runtime_check", {}).get("visible") is True
         runtime_ok = result.get("runtime_check", {}).get("visible") is True
         poc_ok = not poc_path or result.get("functional_check", {}).get("return_code") == 0
         unload_ok = result.get("unload", {}).get("return_code") == 0

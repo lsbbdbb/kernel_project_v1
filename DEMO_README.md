@@ -1,53 +1,99 @@
-# 明天演示操作手册
+# kernel-livepatch-agent 演示操作手册
 
-## 一、一键启动
+## 环境
+
+| 组件 | 地址 | 说明 |
+|------|------|------|
+| 构建服务器 | lee@100.64.162.82 | Docker, 项目代码 |
+| 目标 VM | kxr@10.99.2.182 | Anolis OS 23, kernel 6.6.102-5.2.an23 |
+
+---
+
+## 一键演示
 
 ```bash
+ssh lee@100.64.162.82
 cd ~/kernel-livepatch-agent
 bash demo.sh
 ```
 
-这一个命令会自动完成：清理 → 恢复源码树 → 撤销 0011 修复 → 启动 LLM Agent。
+## 预期结果
 
-## 二、预期结果
+```
+Total: 6 | Success: 2 | Manual: 4
+```
 
-| CVE | 流程 | 演示看点 |
-|-----|------|---------|
-| CVE-2026-0011 | resolve → fetch → analyze → check → **apply OK → build → .ko → VM 验证** | AI 自动生成热补丁、SCP 到 VM、insmod/patching complete |
-| CVE-2026-0012 | resolve → fetch → analyze → check → apply OK → build → verify | 同上 |
-| CVE-2026-0013 | resolve → ... → apply 失败 → **LLM 分类** → **LLM 改写** | AI 分析 header-only 补丁，决定是否需要 rewrite |
-| CVE-2026-0014 | resolve → ... → apply 失败 → **LLM 分类** → **LLM 改写** | AI 识别补丁已合入 |
-| CVE-2026-0015 | resolve → ... → apply 失败 → **LLM 分类** → **LLM 改写** | AI 发现上下文不匹配，尝试改写 |
-| CVE-2026-0016 | resolve → ... → apply 失败 → classify（不可改写） | AI 识别不可恢复错误 |
+| CVE | .ko | VM验证 | LLM | 演示看点 |
+|-----|:--:|:--:|:--:|------|
+| 0011 | 2.2MB | patching complete | - | CVE→补丁→编译→VM 全链路 |
+| 0012 | 1.3MB | patching complete | - | 同上 |
+| 0013 | - | - | classify+rewrite | AI 识别 header-only |
+| 0014 | - | - | classify+rewrite | AI 检测已合入 |
+| 0015 | - | - | classify+rewrite | AI 上下文改写 |
+| 0016 | - | - | classify | AI 判定不可恢复 |
 
-## 三、手动清理
+---
+
+## 手动清理（重新演示前）
 
 ```bash
-# 停止所有 agent 容器
+# 停止容器
 docker ps -q --filter name=agent | xargs -r docker kill
 
-# 清空数据
+# 清理数据
 cd ~/kernel-livepatch-agent && docker compose down -v
 
-# 恢复内核源码树
+# 恢复源码树
+cd ~/kernel-livepatch-agent/acceptance_vm_20260525/source_tree/linux-6.6.102-5.2.an23
+git checkout . && git clean -fd
+
+# 撤销0011修复（演示需要）
+sed -i '654,655d' net/core/dev.c
+sed -i '653{ /^$/d; }' net/core/dev.c
+
+# 确认VM在线
+ssh -o StrictHostKeyChecking=no kxr@10.99.2.182 "uname -r"
+```
+
+---
+
+## 手动运行（不用 demo.sh）
+
+```bash
+cd ~/kernel-livepatch-agent
+docker compose run --rm \
+    -v ~/.cache/kpatch-agent:/root/.cache/kpatch-agent:z \
+    -e VM_HOST=kxr@10.99.2.182 \
+    -e PYTHONUNBUFFERED=1 \
+    agent-run bash -c '
+python3 -m agent --cves demo_cves.txt \
+    --kernel-version 6.6.102-5.2.an23.x86_64 \
+    --vm-host kxr@10.99.2.182
+'
+```
+
+加 `--no-llm` 用规则模式（无 AI）。不加则 LLM 模式。
+
+---
+
+## Git 恢复（出问题随时回滚）
+
+```bash
+# 项目代码
+cd ~/kernel-livepatch-agent && git checkout .
+
+# 内核源码树
 cd ~/kernel-livepatch-agent/acceptance_vm_20260525/source_tree/linux-6.6.102-5.2.an23
 git checkout .
 ```
 
-## 四、重复演示
+---
 
-直接再跑 `bash demo.sh` 即可。每次自动清理干净。
+## 故障排查
 
-## 五、常见问题
-
-**Q: DeepSeek API 超时？**
-A: Docker 内网络正常（已验证可达 api.deepseek.com）。timeout 120s 足够。
-
-**Q: kpatch-build 失败？**
-A: 检查 vmlinux 不是空文件（`ls -lh vmlinux` 应为 347MB）
-
-**Q: VM 连不上？**
-A: 从服务器 `ssh kxr@10.99.2.182` 确认可达
-
-**Q: .ko 没生成？**
-A: 仅有 0011 和 0012 会产出 .ko，其他都是分类/改写场景
+| 问题 | 检查 |
+|------|------|
+| build 失败 | `ls -lh vmlinux` 应为 347MB |
+| VM 超时 | `ssh kxr@10.99.2.182 uname -r` |
+| LLM 超时 | Docker 内 `curl api.deepseek.com` |
+| 缓存失效 | `ls ~/.cache/kpatch-agent/nvd/CVE-2026-*.json` |
