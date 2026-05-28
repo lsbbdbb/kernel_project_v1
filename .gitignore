@@ -10,11 +10,26 @@ venv/
 .env
 kernel-src/
 acceptance_vm_20260525/
+
 # On-disk CVE workdirs — generated, not tracked
 run_*/
 run_acceptance_*/
+docker_*/
+docker_run/
+
+# Build artifacts
+*.ko
+output_artifacts/
+
+# Test/cache
+.pytest_cache/
+
+# Backup files
+*.bak
+
 # kpatch build cache
 .kpatch/
+
 # Windows path garbage (accidentally committed from dev machine)
 E:/
 
@@ -23,3 +38,7 @@ E:/
 .vscode/
 *.swp
 *.swo
+
+# Claude Code
+.claude/
+docs/superpowers/
