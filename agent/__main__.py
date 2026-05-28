@@ -245,29 +245,10 @@ def _action_apply_patch(cve_id: str, workdir: str, state_mgr: StateManager) -> D
               "dry_run_ok": False, "error": None, "stage": "apply"}
 
     if os.path.isdir(source_dir) and os.path.isfile(patch_path):
-        # Strip email headers from patch (synthetic patches have From/Subject lines)
-        _clean_patch = None
-        try:
-            with open(patch_path) as _pf:
-                _raw = _pf.read()
-            _diff_start = _raw.find("diff --git")
-            if _diff_start > 0:
-                _clean = _raw[_diff_start:]
-                _clean = re.sub(r"index [0-9a-f]+\.\.[0-9a-f]+ .*
-", "", _clean)
-                import tempfile
-                _tf = tempfile.NamedTemporaryFile(mode="w", suffix=".patch", delete=False)
-                _tf.write(_clean)
-                _tf.close()
-                _clean_patch = _tf.name
-        except Exception:
-            pass
-        _patch_to_check = _clean_patch or patch_path
-
         # Stage 1: strict git apply --check
         try:
             proc = subprocess.run(
-                ["git", "apply", "--check", _patch_to_check],
+                ["git", "apply", "--check", patch_path],
                 cwd=source_dir, capture_output=True, text=True, timeout=30,
                 env={**os.environ, "LC_ALL": "C", "LANG": "C"})
             result["dry_run_ok"] = proc.returncode == 0

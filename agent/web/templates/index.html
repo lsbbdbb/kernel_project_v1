@@ -582,7 +582,7 @@ function gentleUpdate(data){
   });
   renderPipeline(stateMap);
   stateMapFull=stateMap;
-  var fg=document.getElementById('pipelineGridFull');if(fg)fullPipelineUpdate();
+  var fc=document.getElementById('flowContainer');if(fc)renderFlowDiagram();
   var grid=document.getElementById('cveGrid');
   if(!grid.children.length||grid.children.length===1&&!grid.children[0].classList.contains('cve-card')){
     grid.innerHTML='';
@@ -629,11 +629,47 @@ function gentleUpdate(data){
 // ===== HTTP Polling =====
 function pollStatus(){
   fetch('/api/status').then(function(r){return r.json()}).then(function(data){
-    data=mergeMock(data);
     stateCache=data;
     gentleUpdate(data);
   }).catch(function(){});
   _pollTimer=setTimeout(pollStatus,3000);
+}
+
+function renderHistory(){
+  var mock=generateMockData();
+  var grid=document.getElementById('historyGrid');if(!grid)return;
+  grid.innerHTML='';
+  (mock.cves||[]).forEach(function(c,i){
+    var card=document.createElement('div');
+    var state=c.state||'unknown',status=c.status||'no_data';
+    var sc='state-idle';
+    if(status==='success')sc='state-success';else if(status==='failed')sc='state-failed';
+    else if(status==='manual_required')sc='state-manual';else if(status==='skipped')sc='state-skipped';
+    else if(status==='idle'||status==='running')sc='state-running';
+    card.className='cve-card '+sc;card.dataset.cveId=c.cve_id;
+    var tc='tag-idle';
+    if(status==='success')tc='tag-success';else if(status==='failed')tc='tag-failed';
+    else if(status==='manual_required')tc='tag-manual';else if(status==='skipped')tc='tag-skipped';
+    else if(status==='running'||status==='idle')tc='tag-running';
+    var dots='';STAGE_ORDER.forEach(function(sid){
+      var passed={};(c.events||[]).forEach(function(ev){passed[ev.from]=1;passed[ev.to]=1});
+      if(passed[sid])dots+='<span class="sd ok"></span>';else if(sid===state)dots+='<span class="sd act"></span>';else dots+='<span class="sd pending"></span>';
+    });
+    var err=c.error?c.error.slice(0,80):'';
+    card.innerHTML='<div class="cve-top"><span class="cve-id">'+c.cve_id+'</span><span class="cve-state-tag '+tc+'">'+status+'</span></div>'+
+      '<div class="cve-meta"><span>尝试: '+c.attempt+'/'+c.max_attempts+'</span>'+(c.has_artifact?'<span>✅ .ko</span>':'')+'</div>'+
+      (err?'<div class="cve-error">⚠️ '+escapeHtml(err)+'</div>':'')+
+      '<div class="cve-stage-bar">'+dots+'</div>';
+    card.style.animation='fadeSlideIn .3s ease '+(i*40)+'ms both';
+    grid.appendChild(card);
+  });
+  var stats='共 / Total: '+mock.cves.length+' CVE';
+  var suc=mock.cves.filter(function(c){return c.status==='success'}).length;
+  var fal=mock.cves.filter(function(c){return c.status==='failed'}).length;
+  var man=mock.cves.filter(function(c){return c.status==='manual_required'}).length;
+  var skp=mock.cves.filter(function(c){return c.status==='skipped'}).length;
+  document.getElementById('histStats').innerHTML='<span>✅ 成功/Success: '+suc+'</span> <span>❌ 失败/Failed: '+fal+'</span> <span>⚠️ 需人工/Manual: '+man+'</span> <span>⏭ 跳过/Skipped: '+skp+'</span>';
+  document.getElementById('historyUpdate').textContent='更新 / Updated: '+new Date().toLocaleTimeString();
 }
 
 function loadDefaultCves(){
@@ -673,8 +709,15 @@ document.addEventListener('click',function(e){
 
 function loadOverview(cveId){
   var el=document.getElementById('dtab-overview');el.innerHTML='<p style="color:var(--text-dim)">⏳ 加载中 / Loading…</p>';
-  fetch('/api/cve/'+cveId).then(function(r){return r.json()}).then(function(data){
+  // Load CVE data + files in parallel
+  Promise.all([
+    fetch('/api/cve/'+cveId).then(function(r){return r.json()}),
+    fetch('/api/cve/'+cveId+'/files').then(function(r){return r.json()})
+  ]).then(function(res){
+    var data=res[0],filesData=res[1];
     var html='';
+    var cve=null;(stateCache.cves||[]).forEach(function(c){if(c.cve_id===cveId)cve=c});
+    // Metadata
     if(data.metadata&&Object.keys(data.metadata).length){
       var nvd=data.metadata.nvd||{};
       html+='<div class="detail-section"><h4>CVE 元数据 / Metadata</h4>';
@@ -683,17 +726,37 @@ function loadOverview(cveId){
       if(nvd.metrics&&nvd.metrics.cvssMetricV31){var cv=nvd.metrics.cvssMetricV31[0];if(cv.cvssData)html+='<div><strong>CVSS:</strong> '+cv.cvssData.baseScore+' ('+cv.cvssData.baseSeverity+')</div>'}
       html+='</div>';
     }
-    // Timeline from stateCache
-    var tml='<div class="detail-section"><h4>阶段时间线 / Timeline</h4>';
-    var cve=null;(stateCache.cves||[]).forEach(function(c){if(c.cve_id===cveId)cve=c});
+    // Timeline with per-stage artifacts
+    html+='<div class="detail-section"><h4>阶段时间线与产物 / Stage Timeline &amp; Artifacts</h4>';
     if(cve&&cve.events&&cve.events.length){
-      cve.events.forEach(function(ev){
-        tml+='<div class="trace-mini-item"><span class="trace-mini-dot" style="background:'+(ev.to==='BuildFailed'||ev.to==='Failed'?'var(--red)':ev.to==='Verified'?'var(--green)':'var(--yellow)')+'"></span>'+
-          '<span>'+escapeHtml(ev.from||'')+' → '+escapeHtml(ev.to||'')+'</span></div>';
+      cve.events.forEach(function(ev,ei){
+        var isFail=ev.to==='BuildFailed'||ev.to==='Failed';
+        var isDone=ev.to==='Verified'||ev.to==='ReportWritten'||ev.to==='BuildSucceeded';
+        var dotColor=isFail?'var(--red)':isDone?'var(--green)':'var(--yellow)';
+        html+='<div class="trace-mini-item">';
+        html+='<span class="trace-mini-dot" style="background:'+dotColor+'"></span>';
+        html+='<span><strong>'+escapeHtml(ev.from||'')+'</strong> → <strong>'+escapeHtml(ev.to||'')+'</strong></span>';
+        if(ev.reason)html+=' <span style="color:var(--text-dim);font-size:10px">'+escapeHtml(ev.reason.slice(0,60))+'</span>';
+        html+='</div>';
+        // Show artifacts for this stage if available
+        if(filesData&&filesData.files){
+          var stageFiles=filesData.files.filter(function(f){return f.path.indexOf(ev.to.toLowerCase())>=0||f.path.indexOf(ev.from.toLowerCase())>=0});
+          stageFiles.forEach(function(f){
+            var icon='📄';if(f.path.indexOf('.log')>=0)icon='📋';else if(f.path.indexOf('.patch')>=0)icon='🩹';else if(f.path.indexOf('.ko')>=0)icon='🔧';
+            html+='<div style="margin-left:24px;font-size:10px;color:var(--text-dim);padding:1px 0"><span style="display:inline-block;width:16px">'+icon+'</span> '+escapeHtml(f.path)+' <span style="color:var(--text-dimmer)">'+(f.size>1024?(f.size/1024).toFixed(1)+'KB':f.size+'B')+'</span></div>';
+          });
+        }
       });
-    }else tml+='<span style="color:var(--text-dim)">暂无事件 / No events</span>';
-    tml+='</div>';
-    el.innerHTML=html+tml;
+      // Summary: show patches and artifacts
+      if(data.patches&&Object.keys(data.patches).length){
+        html+='<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);font-size:10px;color:var(--accent)">';
+        Object.keys(data.patches).forEach(function(n){html+='🩹 '+escapeHtml(n)+' '});
+        html+='</div>';
+      }
+      if(data.has_artifact)html+='<div style="margin-top:4px;font-size:10px;color:var(--green)">✅ .ko 构建产物已生成 / Build artifact produced</div>';
+    }else html+='<span style="color:var(--text-dim)">暂无事件 / No events</span>';
+    html+='</div>';
+    el.innerHTML=html;
   }).catch(function(e){el.innerHTML='<p style="color:var(--red)">Error: '+e.message+'</p>'});
 }
 function loadFailure(cveId){
@@ -831,27 +894,72 @@ document.querySelectorAll('.tab').forEach(function(tab){
     tab.classList.add('active');
     document.getElementById('tab-'+tab.dataset.tab).classList.add('active');
     // Lazy-load tab-specific content
-    if(tab.dataset.tab==='pipeline')fullPipelineUpdate();
+    if(tab.dataset.tab==='pipeline')renderFlowDiagram();
+    if(tab.dataset.tab==='history')renderHistory();
     if(tab.dataset.tab==='env')loadEnvTab();
     if(tab.dataset.tab==='trace')loadTrace();
   });
 });
 
-function fullPipelineUpdate(){
-  var grid=document.getElementById('pipelineGridFull');if(!grid)return;
-  grid.innerHTML='';
-  PIPELINE_GRID.forEach(function(s){
-    var cell=document.createElement('div');cell.className='pg-node';
-    var info=stateMapFull&&stateMapFull[s.id];
-    if(info){
-      if(info.status==='success'||info.done)cell.classList.add('done');
-      else if(info.status==='failed')cell.classList.add('failed');
-      else if(info.skipped)cell.classList.add('skipped');
-      else cell.classList.add('active');
-    }
-    cell.innerHTML='<div class="pg-count">'+(info?info.count:0)+'</div><div class="pg-label">'+s.cn+'<br>'+s.label+'</div>';
-    grid.appendChild(cell);
+function makeFlowNode(id,label,cn,count){
+  var n=document.createElement('div');n.className='flow-node';n.id='fn-'+id;
+  var info=stateMapFull&&stateMapFull[id];
+  if(info){
+    if(info.status==='success'||info.done)n.classList.add('done');
+    else if(info.status==='failed')n.classList.add('failed');
+    else if(info.skipped)n.classList.add('skipped');
+    else n.classList.add('active');
+  }
+  n.innerHTML='<div class="fn-count">'+(count!==undefined?count:(info?info.count:0))+'</div><div class="fn-label">'+cn+'<br>'+label+'</div>';
+  return n;
+}
+function makeArrow(){var a=document.createElement('div');a.className='flow-arrow';a.textContent='→';return a}
+function makeDownArrow(){var a=document.createElement('div');a.className='flow-arrow-down';a.textContent='↓';return a}
+function makeBranch(){var b=document.createElement('div');b.className='flow-branch-line';return b}
+
+function renderFlowDiagram(){
+  var cont=document.getElementById('flowContainer');if(!cont)return;
+  cont.innerHTML='';
+  // Row 1: forward flow (6 states)
+  var r1=document.createElement('div');r1.className='flow-row';
+  var r1s=['TaskCreated','CveResolved','PatchFetched','PatchAnalyzed','TargetChecked','PatchApplied'];
+  r1s.forEach(function(id,i){
+    if(i>0)r1.appendChild(makeArrow());
+    var s=null;PIPELINE_GRID.forEach(function(p){if(p.id===id)s=p});
+    if(s)r1.appendChild(makeFlowNode(id,s.label,s.cn));
   });
+  cont.appendChild(r1);
+  // Connector: PatchApplied ↓ BuildRunning + BuildFailed
+  var con1=document.createElement('div');con1.className='flow-connector';
+  var br1=document.createElement('div');br1.className='flow-row';
+  br1.appendChild(makeDownArrow());br1.appendChild(makeDownArrow());
+  con1.appendChild(br1);
+  cont.appendChild(con1);
+  // Row 2: build-verify (6 states)
+  var r2=document.createElement('div');r2.className='flow-row';
+  var r2s=['BuildRunning','BuildSucceeded','LoadTesting','Verified','ReportWritten','FixEnvironment'];
+  r2s.forEach(function(id,i){
+    if(i>0)r2.appendChild(makeArrow());
+    var s=null;PIPELINE_GRID.forEach(function(p){if(p.id===id)s=p});
+    if(s)r2.appendChild(makeFlowNode(id,s.label,s.cn));
+  });
+  cont.appendChild(r2);
+  // Connector: BuildRunning ↓ BuildFailed
+  var con2=document.createElement('div');con2.className='flow-connector';
+  var br2=document.createElement('div');br2.className='flow-row';
+  br2.appendChild(document.createElement('div')); // spacer
+  br2.appendChild(makeDownArrow());
+  con2.appendChild(br2);
+  cont.appendChild(con2);
+  // Row 3: failure handling (6 states)
+  var r3=document.createElement('div');r3.className='flow-row';
+  var r3s=['BuildFailed','FailureClassified','RewritePrepared','ManualRequired','Failed','Skipped'];
+  r3s.forEach(function(id,i){
+    if(i>0)r3.appendChild(makeArrow());
+    var s=null;PIPELINE_GRID.forEach(function(p){if(p.id===id)s=p});
+    if(s)r3.appendChild(makeFlowNode(id,s.label,s.cn));
+  });
+  cont.appendChild(r3);
 }
 var stateMapFull=null;
 
@@ -1002,21 +1110,12 @@ function generateMockData(){
 }
 
 // ===== Init =====
-// Always show mock historical data, merge real data on top
-function mergeMock(data){
-  var mock=generateMockData();
-  // Merge: real CVEs override mock ones, mock fills gaps
-  var mergedCves=[];
-  var seen={};
-  (data.cves||[]).forEach(function(c){seen[c.cve_id]=1;mergedCves.push(c)});
-  (mock.cves||[]).forEach(function(c){if(!seen[c.cve_id]){mergedCves.push(c);seen[c.cve_id]=1}});
-  data.cves=mergedCves;data.cve_count=mergedCves.length;
-  return data;
-}
+// Load real data for dashboard, mock data for history tab
+renderHistory();
 fetch('/api/status').then(function(r){return r.json()}).then(function(data){
-  if(data.cves&&data.cves.length){data=mergeMock(data);stateCache=data;gentleUpdate(data)}
-  else{var mock=generateMockData();stateCache=mock;gentleUpdate(mock)}
-}).catch(function(){var mock=generateMockData();stateCache=mock;gentleUpdate(mock)});
+  if(data.cves&&data.cves.length){stateCache=data;gentleUpdate(data)}
+  else{/* no real data, dashboard stays empty */}
+}).catch(function(){/* API unavailable, dashboard stays empty */});
 _pollTimer=setTimeout(pollStatus,3000);
 </script>
 </body>
