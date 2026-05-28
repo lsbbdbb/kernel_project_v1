@@ -529,7 +529,7 @@ def api_environment():
     docker_inside = os.path.exists("/.dockerenv")
     docker_cli = _docker_available()
     info = {
-        "docker": docker_inside,
+        "inside_docker": docker_inside,
         "docker_available": docker_cli,
         "python": sys.version,
         "workdir": _workdir,

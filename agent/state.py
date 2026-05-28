@@ -124,9 +124,53 @@ class StateManager:
     def reset_cve(self, cve_id: str) -> Dict:
         """Reset a CVE to TaskCreated by removing and re-initializing its state."""
         cve_dir = os.path.join(self.workdir, cve_id)
+        state = {
+            "cve_id": cve_id,
+            "state": "TaskCreated",
+            "attempt": 0,
+            "max_attempts": self.get_run_config().get("max_attempts", 5),
+            "status": None,
+            "created_at": datetime.datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.datetime.now(timezone.utc).isoformat(),
+            "last_error": None,
+            "evidence_paths": {},
+        }
+        # Strategy 1: overwrite state.json in-place
         if os.path.isdir(cve_dir):
-            shutil.rmtree(cve_dir)
-        return self.init_cve_state(cve_id)
+            state_path = os.path.join(cve_dir, "state.json")
+            try:
+                self._write_json(state_path, state)
+                return state
+            except PermissionError:
+                pass
+        # Strategy 2: remove + recreate
+        shutil.rmtree(cve_dir, ignore_errors=True)
+        try:
+            return self.init_cve_state(cve_id)
+        except PermissionError:
+            pass
+        # Strategy 3: Docker-assisted cleanup
+        try:
+            import subprocess
+            subprocess.run(
+                ["docker", "run", "--rm", "-v",
+                 f"{self.workdir}:/work:Z",
+                 "busybox", "sh", "-c",
+                 f"rm -rf /work/{os.path.basename(cve_dir)} && mkdir -p /work/{os.path.basename(cve_dir)}"],
+                capture_output=True, text=True, timeout=30
+            )
+        except Exception:
+            pass
+        try:
+            return self.init_cve_state(cve_id)
+        except PermissionError:
+            pass
+        # Give up - tell user to fix ownership
+        raise PermissionError(
+            f"重置失败: {cve_id} 文件属主为 root（来自 Docker 容器）\n"
+            f"Reset failed: files owned by root (Docker volume mount)\n"
+            f"请执行修复 / Fix:  sudo chown -R lee:lee {self.workdir}"
+        )
 
     @staticmethod
     def _write_json(path: str, data: Any):

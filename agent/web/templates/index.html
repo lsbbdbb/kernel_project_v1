@@ -103,20 +103,21 @@ header::before{content:'';position:absolute;top:0;left:28px;right:28px;height:1p
 .pipeline-legend span:nth-child(3)::before{background:var(--green)}
 .pipeline-legend span:nth-child(4)::before{background:var(--red)}
 /* ===== Pipeline Flow Diagram ===== */
-.flow-container{margin-top:12px;overflow-x:auto}
-.flow-row{display:flex;align-items:center;gap:0;margin-bottom:4px}
-.flow-node{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:90px;max-width:100px;padding:8px 6px;border-radius:8px;text-align:center;font-size:9px;line-height:1.2;font-weight:500;background:var(--surface2);border:1px solid var(--border);color:var(--text-dimmer);transition:all .3s ease;position:relative;z-index:1}
-.flow-node .fn-label{font-size:8px;color:var(--text-dimmer);margin-top:1px}
-.flow-node .fn-count{font-size:11px;font-weight:700}
-.flow-arrow{display:flex;align-items:center;justify-content:center;color:var(--text-dimmer);font-size:14px;padding:0 3px;opacity:.35;flex-shrink:0;width:20px}
-.flow-arrow-down{display:flex;align-items:center;justify-content:center;color:var(--text-dimmer);font-size:12px;opacity:.3;padding:0;flex-shrink:0}
-.flow-node.active{background:linear-gradient(135deg,var(--yellow-dim),rgba(212,168,74,.08));border-color:var(--yellow);color:var(--yellow)}
-.flow-node.done{background:linear-gradient(135deg,var(--green-dim),rgba(102,187,122,.08));border-color:var(--green);color:var(--green)}
-.flow-node.failed{background:linear-gradient(135deg,var(--red-dim),rgba(212,106,106,.08));border-color:var(--red);color:var(--red)}
-.flow-node.skipped{background:var(--purple-dim);border-color:var(--purple);color:var(--purple)}
-.flow-connector{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:28px;gap:0}
+.flow-wrapper{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px 20px;margin:0 auto;display:flex;flex-direction:column;align-items:center}
+.flow-container{margin:0 auto;overflow-x:auto;display:flex;flex-direction:column;align-items:center;padding:4px 0;width:100%}
+.flow-row{display:flex;align-items:center;gap:0;margin-bottom:6px;justify-content:center}
+.flow-node{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:120px;max-width:140px;padding:12px 10px;border-radius:12px;text-align:center;font-size:11px;line-height:1.3;font-weight:600;background:var(--surface2);border:2px solid var(--border);color:var(--text-dimmer);transition:all .3s ease;position:relative;z-index:1;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+.flow-node .fn-label{font-size:10px;color:var(--text-dim);margin-top:3px;font-weight:500;white-space:nowrap}
+.flow-node .fn-count{font-size:15px;font-weight:800;letter-spacing:-.5px}
+.flow-arrow{display:flex;align-items:center;justify-content:center;color:var(--accent);font-size:22px;padding:0 6px;opacity:.85;flex-shrink:0;width:28px;text-shadow:0 0 8px var(--accent-dim);font-weight:700}
+.flow-arrow-down{display:flex;align-items:center;justify-content:center;color:var(--accent);font-size:22px;opacity:.75;padding:0;flex-shrink:0;text-shadow:0 0 8px var(--accent-dim);width:28px;margin:0 auto;font-weight:700}
+.flow-node.active{background:linear-gradient(135deg,var(--yellow-dim),rgba(212,168,74,.18));border-color:var(--yellow);color:var(--yellow);box-shadow:0 0 16px var(--yellow-dim)}
+.flow-node.done{background:linear-gradient(135deg,var(--green-dim),rgba(102,187,122,.18));border-color:var(--green);color:var(--green);box-shadow:0 0 12px var(--green-dim)}
+.flow-node.failed{background:linear-gradient(135deg,var(--red-dim),rgba(212,106,106,.18));border-color:var(--red);color:var(--red);box-shadow:0 0 12px var(--red-dim)}
+.flow-node.skipped{background:linear-gradient(135deg,var(--purple-dim),rgba(154,138,204,.18));border-color:var(--purple);color:var(--purple)}
+.flow-connector{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:44px;gap:2px;width:100%}
 .flow-branch{display:flex;align-items:center;gap:0;margin-top:2px}
-.flow-branch-line{border-left:1.5px dashed var(--text-dimmer);height:24px;margin:0 auto;opacity:.3;width:1px}
+.flow-branch-line{border-left:2.5px solid var(--accent);height:32px;margin:0 auto;opacity:.5;width:2px;box-shadow:0 0 6px var(--accent-dim)}
 /* ===== Tabs ===== */
 .tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:16px;padding:0 4px}
 .tab{padding:10px 20px;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-dim);background:none;border:none;border-bottom:2px solid transparent;transition:all .25s ease;position:relative}
@@ -287,7 +288,7 @@ header::before{content:'';position:absolute;top:0;left:28px;right:28px;height:1p
     <span class="btn btn-primary" onclick="showRunForm()">▶ 启动 / Start</span>
     <span class="btn btn-danger" onclick="stopAgent()">⏹ 停止 / Stop</span>
     <span class="btn" onclick="runHeaderCheck()">🔍 检测 / Check</span>
-    <span class="btn" onclick="cleanKernelSrc()">🧹 清理内核 / Clean Src</span>
+    <span class="btn" onclick="resetAllCves()">🔄 重置演示 / Reset Demo</span>
     <span class="theme-toggle" id="themeToggle" onclick="toggleTheme()">🌙</span>
   </div>
   <div id="headerCheckBar" style="width:100%;margin-top:2px;display:none"></div>
@@ -338,7 +339,7 @@ header::before{content:'';position:absolute;top:0;left:28px;right:28px;height:1p
       <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--red);vertical-align:middle;margin-right:3px"></span> 失败 / Failed</span>
       <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--purple);vertical-align:middle;margin-right:3px"></span> 跳过 / Skipped</span>
     </div>
-    <div class="flow-container" id="flowContainer"></div>
+    <div class="flow-wrapper"><div class="flow-container" id="flowContainer"></div></div>
     <div style="margin-top:14px;font-size:13px;color:var(--text-dim);line-height:1.9;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm)">
       <strong style="color:var(--accent)">📋 说明 / Description</strong><br>
       共 <strong>18 个状态</strong>，自上而下三条主线：<br><br>
@@ -660,6 +661,7 @@ function renderHistory(){
       '<div class="cve-meta"><span>尝试: '+c.attempt+'/'+c.max_attempts+'</span>'+(c.has_artifact?'<span>✅ .ko</span>':'')+'</div>'+
       (err?'<div class="cve-error">⚠️ '+escapeHtml(err)+'</div>':'')+
       '<div class="cve-stage-bar">'+dots+'</div>';
+    card.onclick=function(cid){return function(){openMockDetail(cid)}}(c.cve_id);
     card.style.animation='fadeSlideIn .3s ease '+(i*40)+'ms both';
     grid.appendChild(card);
   });
@@ -874,17 +876,111 @@ function runHeaderCheck(){
     bar.onclick=function(){showRunForm();runPreflightCheck()};
   }).catch(function(e){bar.innerHTML='<span style="color:var(--red)">Error: '+e.message+'</span>'});
 }
-function cleanKernelSrc(){
-  if(!confirm('⚠️ 清理内核源码将执行 make mrproper + defconfig。继续？/ Clean kernel source tree?'))return;
-  showToast('🧹 清理中 / Cleaning…','');
-  fetch('/api/clean-kernel-src',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})
+function resetAllCves(){
+  if(!confirm('重置所有 CVE 结果以重新演示？/ Reset all CVE results for re-demonstration?'))return;
+  showToast('🔄 正在重置 / Resetting…','');
+  fetch('/api/reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cve_id:'all'})})
   .then(function(r){return r.json()}).then(function(d){
-    if(d.error){
-      if(d.needs_path){var msg='候选目录 / Candidates:\n'+d.candidates.join('\n');showToast('请指定路径 / Specify path','error');alert(msg)}
-      else showToast('Error: '+d.error,'error');
-    }else showToast('🧹 已开始后台清理 / Cleaning started','success');
+    if(d.error)showToast('Error: '+d.error,'error');
+    else{
+      showToast('🔄 已重置 '+d.count+' 个 CVE / Reset '+d.count+' CVEs','success');
+      // Refresh stats + CVE list to show reset (all back to TaskCreated)
+      setTimeout(function(){
+        pollStatusNow();
+      },500);
+    }
   }).catch(function(e){showToast('Error: '+e.message,'error')});
 }
+function pollStatusNow(){
+  fetch('/api/status').then(function(r){return r.json()}).then(function(data){
+    stateCache=data;gentleUpdate(data);
+  }).catch(function(){});
+}
+
+// Generate mock detail for history CVE (no real backend data)
+function openMockDetail(cveId){
+  currentDetail=cveId;
+  document.getElementById('detailOverlay').classList.add('open');
+  document.getElementById('detailPanel').classList.add('open');
+  document.getElementById('detailTitle').textContent=cveId;
+  document.querySelectorAll('.dtab').forEach(function(t){t.classList.remove('active')});
+  document.querySelectorAll('.dtab-content').forEach(function(c){c.classList.remove('active')});
+  var ft=document.querySelector('.dtab');if(ft)ft.classList.add('active');
+  document.getElementById('dtab-overview').classList.add('active');
+  // Generate fake detail
+  var statuses=['success','success','success','failed','success','manual_required','failed','skipped','success','failed','success','manual_required','success','success','failed','running','running','running','running','running'];
+  var idx=0;
+  (MOCK_METADATA||[]).forEach(function(m,i){if(m.id===cveId)idx=i});
+  var md=MOCK_METADATA[idx]||{id:cveId,desc:'模拟历史处理 / Mock historical processing',score:7.5,sev:'HIGH',patch:'original.patch'};
+  // Build timeline
+  var stages=['TaskCreated','CveResolved','PatchFetched','PatchAnalyzed','TargetChecked','PatchApplied','BuildRunning','BuildSucceeded','LoadTesting','Verified','ReportWritten'];
+  var html='<div class="detail-section"><h4>📋 模拟数据 / Mock Data</h4><div style="font-size:11px;color:var(--text-dim)">此 CVE 为历史演示数据，无实际后端记录 / This is mock demo data</div></div>';
+  html+='<div class="detail-section"><h4>CVE 元数据 / Metadata</h4>';
+  html+='<div><strong>ID:</strong> '+md.id+'</div>';
+  html+='<div><strong>描述 / Desc:</strong> '+escapeHtml(md.desc)+'</div>';
+  html+='<div><strong>CVSS:</strong> '+md.score+' ('+md.sev+') <span style="display:inline-block;width:80px;height:6px;border-radius:3px;background:var(--border);vertical-align:middle;margin-left:6px"><span style="display:block;height:100%;border-radius:3px;width:'+(md.score/10*100)+'%;background:'+(md.score>=7?'var(--red)':md.score>=4?'var(--yellow)':'var(--green)')+'"></span></span></div>';
+  html+='<div><strong>补丁 / Patch:</strong> '+md.patch+'</div>';
+  html+='</div>';
+  // Timeline with artifacts
+  html+='<div class="detail-section"><h4>阶段时间线与产物 / Stage Timeline &amp; Artifacts</h4>';
+  for(var si=0;si<stages.length;si++){
+    var dotColor=si<stages.length-1?'var(--green)':'var(--yellow)';
+    html+='<div class="trace-mini-item" style="margin-bottom:4px">';
+    html+='<span class="trace-mini-dot" style="background:'+dotColor+'"></span>';
+    html+='<span><strong>'+stages[si]+'</strong>';
+    if(si<stages.length-1)html+=' → <strong>'+stages[si+1]+'</strong>';
+    html+='</span></div>';
+    // Artifact per stage
+    if(si<=4)html+='<div style="margin-left:24px;font-size:10px;color:var(--text-dim);padding:1px 0">📄 metadata/'+stages[si].toLowerCase()+'.json (320B)</div>';
+    if(si===3||si===4)html+='<div style="margin-left:24px;font-size:10px;color:var(--text-dim);padding:1px 0">🩹 patches/'+md.patch+' (2.1KB)</div>';
+    if(si===6)html+='<div style="margin-left:24px;font-size:10px;color:var(--text-dim);padding:1px 0">📋 logs/build_0.log (45KB)</div>';
+    if(si===8)html+='<div style="margin-left:24px;font-size:10px;color:var(--text-dim);padding:1px 0">📋 logs/load_test.log (12KB)</div>';
+    if(si===9)html+='<div style="margin-left:24px;font-size:10px;color:var(--green)">🔧 build/livepatch-'+md.id+'.ko (128KB) ✅</div>';
+  }
+  html+='</div>';
+  // Failure detail if applicable
+  if(idx===2||idx===4||idx===6||idx===8||idx===9){
+    html+='<div class="detail-section"><h4>❌ 失败详情 / Failure Detail</h4>';
+    html+='<div class="failure-card" style="margin:0"><strong>'+escapeHtml(md.id)+'</strong><br>';
+    html+='<span>原因 / Reason: '+ (idx===2?'compiler_mismatch':idx===4?'hunk_failed':idx===6?'api_mismatch':'data_change')+'</span>';
+    html+=' · <span>阶段 / Stage: env_check</span>';
+    html+=' · <span>可重试 / Retryable: ❌</span></div></div>';
+  }
+  document.getElementById('dtab-overview').innerHTML=html;
+  // Also populate other tabs with mock content
+  document.getElementById('dtab-failure').innerHTML=idx%3===0?'<div class="detail-section"><p style="color:var(--text-dim)">✅ 无失败 / No failure (success)</p></div>':'<div class="detail-section"><h4>尝试记录 / Attempts</h4><div class="attempt-item">#1 策略/Strategy: context_drift ❌</div><div class="attempt-item">#2 策略/Strategy: api_mismatch '+(idx%2?'✅':'❌')+'</div></div>';
+  document.getElementById('dtab-patches').innerHTML='<pre>--- a/net/core/dev.c\n+++ b/net/core/dev.c\n@@ -1520,6 +1520,8 @@\n+	if (unlikely(!ptr))\n+		return -ENOMEM;\n \treturn 0;\n }</pre>';
+  document.getElementById('dtab-logs').innerHTML='<div class="log-box">[BUILD] kpatch-build v0.9.8\n[INFO] Kernel source: /kernel-src/linux-6.6.102\n[INFO] Patch: patches/'+md.patch+'\n[OK] Dry-run passed\n[RUN] make -j8\n[ERROR] gcc/kernel version mismatch\n[FAIL] Build exited with code 1</div>';
+  document.getElementById('dtab-files').innerHTML='<div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">共 / Total: 8 个文件</div>'+
+    '<div class="file-item"><span class="fname">📄 metadata/raw_nvd.json</span><span class="fsize">2.4KB</span></div>'+
+    '<div class="file-item"><span class="fname">📄 metadata/patch_ir.json</span><span class="fsize">1.1KB</span></div>'+
+    '<div class="file-item"><span class="fname">🩹 patches/original.patch</span><span class="fsize">2.1KB</span></div>'+
+    '<div class="file-item"><span class="fname">📋 logs/build_0.log</span><span class="fsize">45KB</span></div>'+
+    '<div class="file-item"><span class="fname">📋 logs/build_1.log</span><span class="fsize">32KB</span></div>'+
+    (idx%2?'<div class="file-item"><span class="fname">🔧 build/livepatch-'+md.id+'.ko</span><span class="fsize">128KB</span></div>':'');
+}
+var MOCK_METADATA=[
+  {id:'CVE-2024-50001',desc:'net/tcp: fix use-after-free in tcp_v4_rcv - 修复 TCP 协议栈中的释放后使用漏洞',score:8.5,sev:'HIGH',patch:'original.patch'},
+  {id:'CVE-2024-50002',desc:'net/udp: add missing rcu lock in udp_queue_rcv_skb - 补充 UDP 接收路径的 RCU 锁',score:6.2,sev:'MEDIUM',patch:'original.patch'},
+  {id:'CVE-2024-50003',desc:'fs/ext4: fix null-ptr-deref in ext4_mb_discard_preallocations - EXT4 预分配释放空指针解引用',score:7.8,sev:'HIGH',patch:'v2.patch'},
+  {id:'CVE-2024-50004',desc:'mm/slab: add guard page to slab cache - SLAB 分配器增加保护页',score:5.4,sev:'MEDIUM',patch:'original.patch'},
+  {id:'CVE-2024-50005',desc:'drm/i915: fix memory barrier in execbuffer - i915 执行缓冲区内存屏障修复',score:6.8,sev:'MEDIUM',patch:'rewrite.patch'},
+  {id:'CVE-2024-50006',desc:'fs/btrfs: fix double free in btrfs_ioctl - BTRFS ioctl 双重释放修复',score:9.1,sev:'CRITICAL',patch:'v3.patch'},
+  {id:'CVE-2024-50007',desc:'netfilter: fix conntrack confirmation race - 连接跟踪确认竞争条件修复',score:7.2,sev:'HIGH',patch:'original.patch'},
+  {id:'CVE-2024-50008',desc:'ALSA: pcm: fix OOB access in snd_pcm_ioctl - ALSA PCM ioctl 越界访问',score:6.5,sev:'MEDIUM',patch:'skip.txt'},
+  {id:'CVE-2024-50009',desc:'perf/core: fix event cleanup on error path - 性能事件清理路径修复',score:5.9,sev:'MEDIUM',patch:'original.patch'},
+  {id:'CVE-2024-50010',desc:'NFS: fix writeback data corruption - NFS 写回数据损坏修复',score:8.0,sev:'HIGH',patch:'v2.patch'},
+  {id:'CVE-2024-50011',desc:'virtio-net: fix TX queue stall - virtio-net 发送队列停滞修复',score:6.1,sev:'MEDIUM',patch:'original.patch'},
+  {id:'CVE-2024-50012',desc:'ipv6: fix fragment reassembly memory leak - IPv6 分片重组内存泄漏',score:7.4,sev:'HIGH',patch:'rewrite.patch'},
+  {id:'CVE-2024-50013',desc:'mm: fix page fault handler race - 页面错误处理程序竞争修复',score:5.8,sev:'MEDIUM',patch:'original.patch'},
+  {id:'CVE-2024-50014',desc:'ext4: fix delayed allocation ENOSPC - EXT4 延迟分配空间不足修复',score:6.9,sev:'MEDIUM',patch:'v2.patch'},
+  {id:'CVE-2024-50015',desc:'mlx5e: fix XDP offload resource leak - MLX5 XDP 卸载资源泄漏修复',score:7.6,sev:'HIGH',patch:'v3.patch'},
+  {id:'CVE-2025-40001',desc:'net/sctp: fix bind address validation - SCTP 绑定地址校验修复',score:6.3,sev:'MEDIUM',patch:'original.patch'},
+  {id:'CVE-2025-40002',desc:'afs: fix cell name validation - AFS 单元名验证修复',score:5.1,sev:'MEDIUM',patch:'original.patch'},
+  {id:'CVE-2025-40003',desc:'tracing: fix cpumask write overflow - trace cpumask 写入溢出修复',score:7.0,sev:'HIGH',patch:'v2.patch'},
+  {id:'CVE-2025-40004',desc:'hwmon: fix drivetemp sensor read - 硬盘温度传感器读取修复',score:4.2,sev:'LOW',patch:'original.patch'},
+  {id:'CVE-2025-40005',desc:'mm/ksm: fix page reference leak - KSM 页面引用泄漏修复',score:6.0,sev:'MEDIUM',patch:'original.patch'},
+];
 
 // ===== Tab Switching =====
 document.querySelectorAll('.tab').forEach(function(tab){
