@@ -63,16 +63,22 @@ class TestRewriteAdvisor:
         assert plan["decision"] == "manual_required"
 
     def test_struct_and_data_rewrites_are_manual_even_for_rewriteable_unit(self):
+        """struct_or_data_change stays manual; field_mismatch is now rewrite-eligible."""
         change_units = {
             "units": [{
                 "change_id": "CU-001", "file": "net/example.c",
                 "function": "example_check", "rewrite_allowed": True,
             }]
         }
-        for reason in ("struct_or_data_change", "field_mismatch"):
-            failure = {"category": "kpatch_limit", "reason_code": reason, "retryable": False}
-            plan = self.advisor.create_rewrite_plan(failure, change_units, attempt=1)
-            assert plan["decision"] == "manual_required"
+        # struct_or_data_change → struct_abi strategy (auto_allowed=False) → manual_required
+        failure = {"category": "kpatch_limit", "reason_code": "struct_or_data_change", "retryable": False}
+        plan = self.advisor.create_rewrite_plan(failure, change_units, attempt=1)
+        assert plan["decision"] == "manual_required"
+
+        # field_mismatch → field_rename strategy (auto_allowed=True) → rewrite
+        failure2 = {"category": "compile", "reason_code": "field_mismatch", "retryable": True}
+        plan2 = self.advisor.create_rewrite_plan(failure2, change_units, attempt=1)
+        assert plan2["decision"] == "rewrite", f"Expected rewrite, got {plan2['decision']}"
 
     def test_rewrite_plan_file_saved(self):
         failure = {

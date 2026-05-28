@@ -64,7 +64,7 @@ class FailureClassifier:
             "pattern_id": "compile.unknown_field", "stage": "build",
             "category": "compile", "reason_code": "field_mismatch",
             "matchers": [r"has no member named"],
-            "retryable": False, "next_action": "manual_required",
+            "retryable": True, "next_action": "rewrite",
         },
         {
             "pattern_id": "kpatch.no_fentry", "stage": "build",

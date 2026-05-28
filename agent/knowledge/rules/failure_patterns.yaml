@@ -88,9 +88,9 @@
   reason_code: field_mismatch
   matchers:
     - "has no member named"
-  action: manual_required
-  auto_retry_allowed: false
-  requires_human_review: true
+  action: rewrite
+  auto_retry_allowed: true
+  requires_human_review: false
 
 - pattern_id: compile.undefined_symbol
   category: compile

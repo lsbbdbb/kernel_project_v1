@@ -50,6 +50,11 @@ class RewriteAdvisor:
             "auto_allowed": False,
             "semantic_guard": ["must_not_broaden_fix_scope"],
         },
+        "field_rename": {
+            "description": "Struct field renamed in target kernel - adapt field references",
+            "auto_allowed": True,
+            "semantic_guard": ["must_not_change_fix_logic", "must_preserve_null_checks"],
+        },
         "struct_abi": {
             "description": "Structure layout changes - generate wrapper with field mapping",
             "auto_allowed": False,
@@ -96,7 +101,7 @@ class RewriteAdvisor:
         # Strategy preference order per failure type
         strategy_pipeline = {
             "struct_or_data_change": ["struct_abi", "data_change"],
-            "field_mismatch": ["struct_abi", "data_change"],
+            "field_mismatch": ["field_rename", "struct_abi", "data_change"],
             "no_fentry": ["no_fentry", "context_drift"],
             "api_mismatch": ["api_mismatch", "context_drift"],
             "hunk_failed": ["context_drift", "api_mismatch"],
@@ -452,10 +457,11 @@ class RewriteAdvisor:
                             failure_info: Optional[Dict] = None) -> str:
         """Apply deterministic transformations to the patch.
 
-        Supports 6 strategies:
+        Supports 7 strategies:
           context_drift — smart hunk re-anchoring against target source
           api_mismatch — add annotation comment for manual review
           missing_include — add header hint comment
+          field_rename — annotate struct field references that need renaming
           struct_abi — generate wrapper function for struct member changes
           data_change — convert static var writes to dynamic alloc
           no_fentry — insert caller-level wrapper for non-fentry functions
@@ -479,6 +485,7 @@ class RewriteAdvisor:
         dispatcher = {
             "api_mismatch": self._annotate_api_mismatch,
             "missing_include": self._add_header_hint,
+            "field_rename": self._rewrite_field_rename,
             "struct_abi": self._rewrite_struct_abi,
             "data_change": self._rewrite_data_change,
             "no_fentry": self._rewrite_no_fentry,
@@ -738,6 +745,28 @@ class RewriteAdvisor:
         return "\n".join(out)
 
     @staticmethod
+    def _rewrite_field_rename(patch: str) -> str:
+        """Annotate struct field references that need renaming.
+
+        When a struct field is renamed between kernel versions, this
+        strategy annotates the patch so affected field accesses are
+        marked for LLM rewrite or manual review. The rule-based pass
+        preserves the patch content and adds explanatory notes.
+        """
+        lines = patch.split("\n")
+        out = [
+            "# REWRITE-NOTE: field_rename — struct member referenced by",
+            "# the patch does not exist in target kernel struct.",
+            "# Lines with field accesses are preserved below for LLM/ manual review.",
+        ]
+        in_diff = False
+        for line in lines:
+            if line.startswith("@@"):
+                in_diff = True
+            out.append(line)
+        return "\n".join(out)
+
+    @staticmethod
     def _rewrite_no_fentry(patch: str) -> str:
         """Generate a caller-level wrapper for non-fentry functions.
 
@@ -777,7 +806,7 @@ class RewriteAdvisor:
         mapping = {
             "hunk_failed": "context_drift", "api_mismatch": "api_mismatch",
             "missing_api_or_include": "missing_include", "no_fentry": "no_fentry",
-            "struct_or_data_change": "struct_abi", "field_mismatch": "struct_abi",
+            "struct_or_data_change": "struct_abi", "field_mismatch": "field_rename",
             "undefined_symbol": "missing_include",
         }
         return mapping.get(reason_code, "context_drift")

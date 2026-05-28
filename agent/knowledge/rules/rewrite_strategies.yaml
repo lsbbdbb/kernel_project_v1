@@ -27,6 +27,16 @@
     - "git apply --check"
     - "kpatch-build"
 
+- strategy_id: field_rename
+  description: "Adapt struct field references to match target kernel struct definition"
+  allowed: true
+  semantic_guards:
+    - "must_not_change_fix_logic"
+    - "must_preserve_null_checks"
+  validation:
+    - "git apply --check"
+    - "kpatch-build"
+
 - strategy_id: no_fentry
   description: "Move fix to a hookable caller function"
   allowed: false
