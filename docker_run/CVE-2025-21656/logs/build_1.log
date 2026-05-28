@@ -1,0 +1,12 @@
+kpatch-build: building livepatch for CVE-2025-21656
+Patch: CVE-2025-21656_hwmon_drivetemp_fix_driver_producing_.patch
+Applying patch...
+git apply --check: OK
+git apply: OK
+Patch applied cleanly
+Building patched kernel...
+make -j8
+drivers/hwmon/drivetemp.c:165: warning: implicit declaration of function 'int'
+drivers/hwmon/drivetemp.c:165: error: 'int' undeclared
+make: *** [scripts/Makefile.build:244: drivers/hwmon/drivetemp.c] Error 1
+kpatch-build: compilation FAILED

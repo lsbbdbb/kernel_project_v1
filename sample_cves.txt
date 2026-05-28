@@ -1,3 +1,14 @@
-CVE-2026-43284
-CVE-2026-43018
-CVE-2025-38182
+# Real upstream CVEs - Kernel CVE Livepatch Auto-Generation Agent
+# Data provenance: NVD API 2.0 (metadata) + GitHub torvalds/linux (patches)
+# All CVEs have confirmed linux-6.6.y stable backports
+
+CVE-2025-21638
+CVE-2024-56659
+CVE-2024-56763
+CVE-2025-21656
+CVE-2025-21646
+CVE-2024-56764
+CVE-2024-46733
+CVE-2024-53156
+CVE-2025-21767
+CVE-2025-21799

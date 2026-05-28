@@ -1,32 +1,74 @@
 {
-  "generated_at": "2026-05-26T18:54:13.937025+00:00",
+  "generated_at": "2026-05-28T00:31:47.361563+00:00",
   "kernel_version": "6.6.102-5.2.an23.x86_64",
-  "total_cves": 3,
+  "total_cves": 10,
   "results": {
-    "success": 0,
-    "failed": 0,
-    "manual_required": 1,
-    "skipped": 2
+    "success": 1,
+    "failed": 9,
+    "manual_required": 9,
+    "skipped": 0
   },
-  "success_rate": 0.0,
+  "success_rate": 0.1,
   "cve_reports": [
     {
-      "cve_id": "CVE-2026-43284",
-      "status": "skipped",
-      "attempts": 0,
+      "cve_id": "CVE-2025-21638",
+      "status": "success",
+      "attempts": 1,
       "failure_category": null
     },
     {
-      "cve_id": "CVE-2026-43018",
-      "status": "skipped",
-      "attempts": 0,
-      "failure_category": null
+      "cve_id": "CVE-2024-56659",
+      "status": "manual_required",
+      "attempts": 2,
+      "failure_category": "api_mismatch"
     },
     {
-      "cve_id": "CVE-2025-38182",
+      "cve_id": "CVE-2024-56763",
+      "status": "manual_required",
+      "attempts": 2,
+      "failure_category": "missing_api_or_include"
+    },
+    {
+      "cve_id": "CVE-2025-21656",
+      "status": "manual_required",
+      "attempts": 2,
+      "failure_category": "missing_api_or_include"
+    },
+    {
+      "cve_id": "CVE-2025-21646",
       "status": "manual_required",
       "attempts": 1,
-      "failure_category": "patch_apply"
+      "failure_category": "field_mismatch"
+    },
+    {
+      "cve_id": "CVE-2024-56764",
+      "status": "manual_required",
+      "attempts": 2,
+      "failure_category": "hunk_failed"
+    },
+    {
+      "cve_id": "CVE-2024-46733",
+      "status": "manual_required",
+      "attempts": 1,
+      "failure_category": "struct_or_data_change"
+    },
+    {
+      "cve_id": "CVE-2024-53156",
+      "status": "manual_required",
+      "attempts": 1,
+      "failure_category": "no_fentry"
+    },
+    {
+      "cve_id": "CVE-2025-21767",
+      "status": "manual_required",
+      "attempts": 1,
+      "failure_category": "struct_or_data_change"
+    },
+    {
+      "cve_id": "CVE-2025-21799",
+      "status": "manual_required",
+      "attempts": 1,
+      "failure_category": "no_fentry"
     }
   ]
 }
