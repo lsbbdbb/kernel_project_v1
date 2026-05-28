@@ -95,28 +95,51 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-image:
+    radial-gradient(ellipse at 20% 15%, var(--accent-dim) 0%, transparent 45%),
+    radial-gradient(ellipse at 80% 85%, var(--accent2-dim) 0%, transparent 45%);
+}
+/* Dot-grid pattern overlay */
+body::before {
+  content: '';
+  position: fixed; inset: 0; pointer-events: none; z-index: 9998;
+  background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
+  background-size: 28px 28px;
+  opacity: 0.25;
+}
+/* Noise grain */
+body::after {
+  content: '';
+  position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+  opacity: 0.005;
+  background: repeating-conic-gradient(var(--text) 0%, transparent 0.02%, transparent 50%) 0 0 / 2px 2px;
 }
 a { color: var(--accent); text-decoration: none; }
 a:hover { opacity: .85; }
 
 /* ===== Layout ===== */
-.container { max-width: 1440px; margin: 0 auto; padding: 16px 24px; }
+.container { max-width: 1400px; margin: 0 auto; padding: 20px 28px; }
 header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 24px;
-  background: var(--glass-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--glass-border);
-  flex-wrap: wrap; gap: 8px;
+  padding: 0 28px; height: 56px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: nowrap; gap: 10px;
   position: sticky; top: 0; z-index: 50;
 }
-.header-left { display: flex; align-items: center; gap: 14px; }
+header::before {
+  content: '';
+  position: absolute; top: 0; left: 28px; right: 28px; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0.5;
+}
+.header-left { display: flex; align-items: center; gap: 12px; }
 .header-left h1 {
-  font-size: 17px; font-weight: 700;
+  font-size: 16px; font-weight: 700;
   font-family: var(--font-display);
   letter-spacing: -0.3px;
 }
+.header-left h1 .hl-accent { color: var(--accent); }
 .status-dot {
   display: inline-block; width: 8px; height: 8px; border-radius: 50%;
   background: var(--text-dim); flex-shrink: 0;
@@ -179,7 +202,7 @@ header {
 .tab:hover { color: var(--text); }
 .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 .tab-content { display: none; padding: 20px 0; }
-.tab-content.active { display: block; animation: fadeSlideIn 0.3s ease; }
+.tab-content.active { display: block; animation: fadeSlideIn 0.3s cubic-bezier(0.22, 1, 0.36, 1); }
 @keyframes fadeSlideIn {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
@@ -212,6 +235,7 @@ header {
   background: var(--accent-dim);
   color: var(--accent);
   border-color: var(--accent);
+  animation: glowPulse 2s ease-in-out infinite;
 }
 .pipeline-node .node-box.done {
   background: var(--green-dim);
@@ -222,6 +246,7 @@ header {
   background: var(--red-dim);
   border-color: var(--red);
   color: var(--red);
+  box-shadow: 0 0 6px var(--red-dim);
 }
 .pipeline-node .node-box.skipped {
   background: var(--yellow-dim);
@@ -273,16 +298,26 @@ header {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 14px 16px; cursor: pointer;
-  transition: all 0.25s ease;
+  transition: border-color 0.25s ease;
+  position: relative;
+}
+.cve-card::before {
+  content: ''; position: absolute; left: 0; top: 4px; bottom: 4px; width: 3px;
+  border-radius: 0 2px 2px 0;
+  transition: background 0.35s ease;
 }
 .cve-card:hover {
-  border-color: var(--text-dimmer);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
+  border-color: var(--accent-dim);
 }
 .cve-card .cve-header { display: flex; justify-content: space-between; align-items: center; }
 .cve-card .cve-id { font-weight: 600; font-size: 14px; font-family: var(--font-mono); }
 .cve-card .cve-state { font-size: 10px; padding: 2px 8px; border-radius: var(--radius-xs); font-weight: 600; letter-spacing: 0.3px; text-transform: uppercase; }
+.cve-card.state-running::before { background: var(--green); }
+.cve-card.state-idle::before { background: var(--yellow); }
+.cve-card.state-success::before { background: var(--accent); }
+.cve-card.state-failed::before { background: var(--red); }
+.cve-card.state-manual_required::before { background: var(--orange); }
+.cve-card.state-skipped::before { background: var(--purple); }
 .badge-running { background: var(--green-dim); color: var(--green); }
 .badge-idle { background: var(--yellow-dim); color: var(--yellow); }
 .badge-success { background: var(--green-dim); color: var(--green); }
@@ -456,7 +491,10 @@ header {
 /* ===== Animations ===== */
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
 .pulse { animation: pulse 1.5s ease-in-out infinite; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeSlideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes glowPulse { 0%,100% { box-shadow: 0 0 3px var(--accent-dim); } 50% { box-shadow: 0 0 10px var(--accent-dim), 0 0 20px var(--accent-dim); } }
+.stagger-fade { opacity: 0; transform: translateY(8px); transition: opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1), transform 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
+.stagger-fade.visible { opacity: 1; transform: translateY(0); }
 
 /* ===== Toast ===== */
 .toast {
@@ -466,7 +504,7 @@ header {
   max-width: 400px; box-shadow: var(--shadow-lg);
   backdrop-filter: blur(12px);
 }
-.toast.show { display: block; animation: fadeIn 0.2s ease; }
+.toast.show { display: block; animation: fadeSlideIn 0.25s cubic-bezier(0.22, 1, 0.36, 1); }
 .toast.success { border-color: var(--green); }
 .toast.error { border-color: var(--red); }
 </style>
@@ -477,7 +515,7 @@ header {
 <header>
   <div class="header-left">
     <span class="status-dot no_data pulse" id="statusDot"></span>
-    <h1>Kernel Livepatch Agent</h1>
+    <h1>Kernel <span class="hl-accent">Livepatch</span> Agent</h1>
     <span style="font-size:12px;color:var(--text-dim)" id="statusText">加载中…</span>
   </div>
   <div class="header-controls">
@@ -645,6 +683,7 @@ document.querySelectorAll('.tab').forEach(tab => {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     tab.classList.add('active');
     document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    setTimeout(triggerStagger, 80);
     // Auto-load trace when switching to trace tab
     if (tab.dataset.tab === 'trace') {
       const sel = document.getElementById('traceCveSelect');
@@ -732,57 +771,10 @@ function renderCveCards(cves) {
     grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-dim)">暂无 CVE 数据</div>';
     return;
   }
-  cves.forEach(c => {
-    const card = document.createElement('div');
-    card.className = 'cve-card';
-    const state = c.state || 'unknown';
-    const status = c.status;
-    let badgeClass = 'badge-idle';
-    if (status === 'success') badgeClass = 'badge-success';
-    else if (status === 'failed') badgeClass = 'badge-failed';
-    else if (status === 'manual_required') badgeClass = 'badge-manual';
-    else if (status === 'skipped') badgeClass = 'badge-skipped';
-    else badgeClass = 'badge-running';
-
-    // Build stage list from events
-    let stagesHtml = '';
-    const events = c.events || [];
-    if (events.length > 0) {
-      stagesHtml = '<div class="cve-stages">';
-      events.forEach((ev, i) => {
-        const dotClass = ev.from === 'PatchApplied' && ev.to === 'ReportWritten' ? 'fail'
-                       : ev.to === 'ReportWritten' ? 'ok'
-                       : ev.from === 'BuildFailed' ? 'fail'
-                       : ev.to === 'Verified' ? 'ok'
-                       : 'active';
-        const reason = (ev.reason || '').slice(0, 50);
-        stagesHtml += `<div class="cve-stage">
-          <span class="stage-dot ${dotClass}"></span>
-          <span class="stage-from">${ev.from}</span>
-          <span class="stage-arrow">→</span>
-          <span class="stage-to">${ev.to}</span>
-          <span class="stage-reason" title="${ev.reason || ''}">${reason}</span>
-        </div>`;
-      });
-      stagesHtml += '</div>';
-    }
-
-    const errorMsg = c.error ? c.error.slice(0, 80) : '';
-    const isOpen = state === 'ReportWritten' && status === 'failed';
-
-    card.innerHTML = `
-      <div class="cve-header">
-        <span class="cve-id">${c.cve_id}</span>
-        <span class="cve-state ${badgeClass}">${state}${status ? ' · ' + status : ''}</span>
-      </div>
-      <div class="cve-detail">
-        <span>尝试: ${c.attempt}/${c.max_attempts}</span>
-        <span>${c.has_artifact ? '✅ 有 .ko' : ''}</span>
-        <span>${errorMsg ? '⚠️ ' + errorMsg : ''}</span>
-      </div>
-      ${stagesHtml}
-    `;
-    card.onclick = () => openDetail(c.cve_id);
+  cves.forEach((c, idx) => {
+    const card = createCveCard(c, idx);
+    card.classList.add('stagger-fade');
+    card.style.transitionDelay = `${idx * 30}ms`;
     grid.appendChild(card);
   });
 }
@@ -1225,13 +1217,26 @@ async function loadTraceForCve(cveId) {
 // ===== SSE Events =====
 function connectSSE() {
   const evtSource = new EventSource('/api/events');
+  let pendingData = null;
+  let updateTimer = null;
+
+  function flushUpdate() {
+    if (!pendingData) return;
+    updateTimer = null;
+    const data = pendingData;
+    pendingData = null;
+    stateCache = data;
+    gentleUpdate(data);
+  }
 
   evtSource.onmessage = function(event) {
     try {
       const data = JSON.parse(event.data);
       if (data._ts || data.cves) {
-        stateCache = data;
-        updateUI(data);
+        pendingData = data;
+        if (!updateTimer) {
+          updateTimer = setTimeout(flushUpdate, 600);
+        }
       }
     } catch (e) {
       // ignore keepalive or parse errors
@@ -1243,7 +1248,7 @@ function connectSSE() {
   };
 }
 
-function updateUI(data) {
+function gentleUpdate(data) {
   updateHeader(data);
   renderStats(data);
   populateTraceSelector(data.cves || []);
@@ -1260,9 +1265,7 @@ function updateUI(data) {
     else if (c.status === 'failed') stateMap[st].status = 'failed';
     else if (c.status === 'skipped') stateMap[st].skipped = true;
     else stateMap[st].status = 'active';
-    // Mark downstream states as completed for terminal states
     if (c.status === 'success' || c.status === 'failed' || c.status === 'skipped' || c.status === 'manual_required') {
-      // For terminal CVEs, mark the pipeline up to their state
       let found = false;
       PIPELINE_STATES.forEach(ps => {
         if (ps.id === st) found = true;
@@ -1272,10 +1275,202 @@ function updateUI(data) {
       });
     }
   });
-  renderPipeline(stateMap);
-  renderCveCards(data.cves || []);
+  gentlePipeline(stateMap);
+  gentleCards(data.cves || []);
 
   document.getElementById('lastUpdate').textContent = '更新于 ' + new Date().toLocaleTimeString();
+}
+
+function gentlePipeline(activeStates) {
+  const el = document.getElementById('pipelineFlow');
+  // First render: build from scratch
+  if (!el.children.length) {
+    renderPipeline(activeStates);
+    return;
+  }
+  // Subsequent: just update CSS classes and labels
+  el.querySelectorAll('.pipeline-node').forEach((node, i) => {
+    const stateId = PIPELINE_STATES[i] && PIPELINE_STATES[i].id;
+    if (!stateId) return;
+    const box = node.querySelector('.node-box');
+    const label = node.querySelector('.node-label');
+    if (!box) return;
+    const info = activeStates[stateId];
+    box.classList.remove('active', 'done', 'failed', 'skipped');
+    if (info) {
+      if (info.status === 'success' || info.done) box.classList.add('done');
+      else if (info.status === 'failed' || info.failed) box.classList.add('failed');
+      else if (info.skipped) box.classList.add('skipped');
+      else box.classList.add('active');
+    }
+    if (label && info) {
+      label.textContent = info.count > 0 ? `${info.count} CVE` : '';
+    }
+  });
+}
+
+function gentleCards(cves) {
+  const grid = document.getElementById('cveGrid');
+  // First render
+  if (!grid.children.length || grid.children.length === 1 && grid.children[0].tagName === 'DIV' && !grid.children[0].classList.contains('cve-card')) {
+    renderCveCards(cves);
+    triggerStagger();
+    return;
+  }
+  // Diff-based update
+  const existing = {};
+  grid.querySelectorAll('.cve-card').forEach(el => {
+    const id = el.dataset.cveId;
+    if (id) existing[id] = el;
+  });
+
+  const newIds = {};
+  (cves || []).forEach(c => { newIds[c.cve_id] = c; });
+
+  // Remove stale
+  Object.keys(existing).forEach(id => {
+    if (!newIds[id]) {
+      existing[id].style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+      existing[id].style.opacity = '0';
+      existing[id].style.transform = 'translateY(-4px)';
+      setTimeout(() => existing[id].remove(), 250);
+      delete existing[id];
+    }
+  });
+
+  // Add/update
+  (cves || []).forEach((c, idx) => {
+    const existingCard = existing[c.cve_id];
+    if (existingCard) {
+      // Update in-place — only refresh inner content
+      const state = c.state || 'unknown';
+      const status = c.status || 'no_data';
+      let stateClass = 'state-running';
+      if (status === 'success') stateClass = 'state-success';
+      else if (status === 'failed') stateClass = 'state-failed';
+      else if (status === 'manual_required') stateClass = 'state-manual_required';
+      else if (status === 'skipped') stateClass = 'state-skipped';
+      else if (status === 'idle' || status === 'no_data') stateClass = 'state-idle';
+      existingCard.className = `cve-card ${stateClass}`;
+      existingCard.dataset.cveId = c.cve_id;
+
+      let badgeClass = 'badge-idle';
+      if (status === 'success') badgeClass = 'badge-success';
+      else if (status === 'failed') badgeClass = 'badge-failed';
+      else if (status === 'manual_required') badgeClass = 'badge-manual';
+      else if (status === 'skipped') badgeClass = 'badge-skipped';
+      else badgeClass = 'badge-running';
+
+      let stagesHtml = '';
+      const events = c.events || [];
+      if (events.length > 0) {
+        stagesHtml = '<div class="cve-stages">';
+        events.forEach(ev => {
+          const dotClass = ev.from === 'PatchApplied' && ev.to === 'ReportWritten' ? 'fail'
+            : ev.to === 'ReportWritten' ? 'ok'
+            : ev.from === 'BuildFailed' ? 'fail'
+            : ev.to === 'Verified' ? 'ok'
+            : 'active';
+          const reason = (ev.reason || '').slice(0, 50);
+          stagesHtml += `<div class="cve-stage">
+            <span class="stage-dot ${dotClass}"></span>
+            <span class="stage-from">${ev.from}</span>
+            <span class="stage-arrow">→</span>
+            <span class="stage-to">${ev.to}</span>
+            <span class="stage-reason" title="${ev.reason || ''}">${reason}</span>
+          </div>`;
+        });
+        stagesHtml += '</div>';
+      }
+      const errorMsg = c.error ? c.error.slice(0, 80) : '';
+      existingCard.innerHTML = `
+        <div class="cve-header">
+          <span class="cve-id">${c.cve_id}</span>
+          <span class="cve-state ${badgeClass}">${state}${status ? ' · ' + status : ''}</span>
+        </div>
+        <div class="cve-detail">
+          <span>尝试: ${c.attempt}/${c.max_attempts}</span>
+          <span>${c.has_artifact ? '✅ 有 .ko' : ''}</span>
+          <span>${errorMsg ? '⚠️ ' + errorMsg : ''}</span>
+        </div>
+        ${stagesHtml}
+      `;
+      existingCard.onclick = () => openDetail(c.cve_id);
+    } else {
+      // New card — use existing createCard path
+      const card = createCveCard(c, idx);
+      card.classList.add('stagger-fade');
+      card.style.transitionDelay = `${idx * 30}ms`;
+      grid.appendChild(card);
+      setTimeout(() => { card.classList.add('visible'); }, 100 + idx * 30);
+    }
+  });
+}
+
+// Build a single CVE card DOM element (extracted from renderCveCards)
+function createCveCard(c, idx) {
+  const card = document.createElement('div');
+  const state = c.state || 'unknown';
+  const status = c.status || 'no_data';
+  let stateClass = 'state-running';
+  if (status === 'success') stateClass = 'state-success';
+  else if (status === 'failed') stateClass = 'state-failed';
+  else if (status === 'manual_required') stateClass = 'state-manual_required';
+  else if (status === 'skipped') stateClass = 'state-skipped';
+  else if (status === 'idle' || status === 'no_data') stateClass = 'state-idle';
+  card.className = `cve-card ${stateClass}`;
+  card.dataset.cveId = c.cve_id;
+  let badgeClass = 'badge-idle';
+  if (status === 'success') badgeClass = 'badge-success';
+  else if (status === 'failed') badgeClass = 'badge-failed';
+  else if (status === 'manual_required') badgeClass = 'badge-manual';
+  else if (status === 'skipped') badgeClass = 'badge-skipped';
+  else badgeClass = 'badge-running';
+  let stagesHtml = '';
+  const events = c.events || [];
+  if (events.length > 0) {
+    stagesHtml = '<div class="cve-stages">';
+    events.forEach(ev => {
+      const dotClass = ev.from === 'PatchApplied' && ev.to === 'ReportWritten' ? 'fail'
+        : ev.to === 'ReportWritten' ? 'ok'
+        : ev.from === 'BuildFailed' ? 'fail'
+        : ev.to === 'Verified' ? 'ok'
+        : 'active';
+      const reason = (ev.reason || '').slice(0, 50);
+      stagesHtml += `<div class="cve-stage">
+        <span class="stage-dot ${dotClass}"></span>
+        <span class="stage-from">${ev.from}</span>
+        <span class="stage-arrow">→</span>
+        <span class="stage-to">${ev.to}</span>
+        <span class="stage-reason" title="${ev.reason || ''}">${reason}</span>
+      </div>`;
+    });
+    stagesHtml += '</div>';
+  }
+  const errorMsg = c.error ? c.error.slice(0, 80) : '';
+  card.innerHTML = `
+    <div class="cve-header">
+      <span class="cve-id">${c.cve_id}</span>
+      <span class="cve-state ${badgeClass}">${state}${status ? ' · ' + status : ''}</span>
+    </div>
+    <div class="cve-detail">
+      <span>尝试: ${c.attempt}/${c.max_attempts}</span>
+      <span>${c.has_artifact ? '✅ 有 .ko' : ''}</span>
+      <span>${errorMsg ? '⚠️ ' + errorMsg : ''}</span>
+    </div>
+    ${stagesHtml}
+  `;
+  card.onclick = () => openDetail(c.cve_id);
+  return card;
+}
+
+// ===== Stagger Reveal =====
+function triggerStagger() {
+  const items = document.querySelectorAll('.stagger-fade:not(.visible)');
+  items.forEach(el => {
+    const delay = parseInt(el.style.transitionDelay) || 0;
+    setTimeout(() => el.classList.add('visible'), 50 + delay);
+  });
 }
 
 // ===== Init =====
