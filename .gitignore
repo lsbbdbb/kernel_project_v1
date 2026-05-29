@@ -1,0 +1,35 @@
+# Ignore common build artifacts and large binary files
+
+# Kernel build outputs
+/kernel-livepatch-agent/kernel-src/
+/kernel-livepatch-agent/acceptance_vm_20260525/
+/kernel-livepatch-agent/acceptance_vm_20260525/**
+
+# Large object and build files
+**/*.o
+**/*.ko
+vmlinux*
+*.rpm
+*.deb
+*.img
+*.iso
+
+# Temporary kernel files
+.tmp_vmlinux.*
+
+# Git pack files inside nested repos
+/kernel-livepatch-agent/.git/
+/kernel-livepatch-agent/**/.git/
+
+# Packages and build artifacts
+/kernel-livepatch-agent/packages/
+/kernel-livepatch-agent/source_rpm/
+
+# Python artifacts
+__pycache__/
+*.pyc
+
+# IDE/editor
+.vscode/
+*.swp
+*.swo
