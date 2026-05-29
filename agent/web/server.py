@@ -815,17 +815,21 @@ def api_events():
         while True:
             time.sleep(3)
 
-            # Check event queue for non-status events (clean_result, etc.)
-            clean_event = None
+            # Drain event queue for real-time log streaming
             while not _event_queue.empty():
                 try:
                     evt = _event_queue.get_nowait()
-                    if evt.get("type") == "clean_result":
-                        clean_event = evt["result"]
+                    etype = evt.get("type")
+                    if etype == "clean_result":
+                        yield f"data: {json.dumps({'type': 'clean_result', 'result': evt['result']}, default=str)}\n\n"
+                    elif etype == "log":
+                        yield f"data: {json.dumps({'type': 'log', 'line': evt['line']}, default=str)}\n\n"
+                    elif etype == "error":
+                        yield f"data: {json.dumps({'type': 'error', 'message': evt['message']}, default=str)}\n\n"
+                    elif etype == "run_completed":
+                        yield f"data: {json.dumps({'type': 'run_completed'})}\n\n"
                 except queue.Empty:
                     break
-            if clean_event:
-                yield f"data: {json.dumps({'type': 'clean_result', 'result': clean_event}, default=str)}\n\n"
 
             if _workdir:
                 try:
@@ -857,46 +861,20 @@ def api_events():
 # Agent run control
 # ---------------------------------------------------------------------------
 
-def _run_agent_worker(cves_path: str, workdir: str, kernel_version: str,
-                       max_attempts: int, no_llm: bool, use_docker: bool = False):
-    """Run the agent in a background thread (host or Docker)."""
+def _run_agent_worker(*args, **kwargs):
+
+    """Run demo.sh and stream output to the event queue."""
     global _run_process
 
-    if use_docker:
-        # Docker mode — use the project's compose env
-        workdir_name = os.path.basename(workdir)
-        extra_args = ["--no-llm"] if no_llm else []
-        cmd = [
-            "docker", "compose", "run", "--rm",
-            "-e", f"WORKDIR=/app/{workdir_name}",
-            "-e", "KERNEL_SRC=/kernel-src/linux-6.6.102-5.2.an23.x86_64",
-            "-e", f"DEEPSEEK_API_KEY={os.environ.get('DEEPSEEK_API_KEY', '')}",
-            "agent",
-            "sh", "-c",
-            f"python3 -m agent --cves /app/{cves_path} "
-            f"--workdir /app/{workdir_name} "
-            f"--kernel-version {kernel_version} "
-            f"--max-attempts {max_attempts} "
-            f"{' '.join(extra_args)}",
-        ]
-        env = {}
-    else:
-        # Host mode — run python directly
-        cmd = [
-            sys.executable, "-m", "agent",
-            "--cves", cves_path,
-            "--workdir", workdir,
-            "--kernel-version", kernel_version,
-            "--max-attempts", str(max_attempts),
-        ]
-        if no_llm:
-            cmd.append("--no-llm")
-        env = os.environ.copy()
+    demo_script = "/home/lee/kernel-livepatch-agent/demo.sh"
+    cwd = "/home/lee/kernel-livepatch-agent"
 
     try:
         _run_process = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            env=env, text=True, bufsize=1,
+            ["bash", demo_script],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            cwd=cwd, text=True, bufsize=1,
+            start_new_session=True,
         )
         for line in _run_process.stdout:
             _event_queue.put({"type": "log", "line": line.rstrip()})
@@ -908,6 +886,7 @@ def _run_agent_worker(cves_path: str, workdir: str, kernel_version: str,
         _event_queue.put({"type": "run_completed"})
 
 
+
 @app.route("/api/run", methods=["POST"])
 def api_run():
     global _run_thread, _workdir
@@ -915,31 +894,17 @@ def api_run():
     if _run_thread and _run_thread.is_alive():
         return jsonify({"error": "Agent is already running"}), 409
 
-    data = request.get_json(silent=True) or {}
-    cves_path = data.get("cves", "sample_cves.txt")
-    kernel_version = data.get("kernel_version", "6.6.102-5.2.an23.x86_64")
-    max_attempts = data.get("max_attempts", 5)
-    no_llm = data.get("no_llm", False)
-
-    # Decide: Docker available? Use it (avoids compiler_mismatch on host)
-    use_docker = _docker_available() and not os.path.exists("/.dockerenv")
-
-    # Create timestamped workdir
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    prefix = "docker_" if use_docker else "run_"
-    workdir = os.path.join(os.getcwd(), f"{prefix}{timestamp}")
-    os.makedirs(workdir, exist_ok=True)
-    _workdir = workdir
+    # Find latest workdir for the UI to track
+    _workdir = _find_latest_workdir()
 
     _run_thread = threading.Thread(
         target=_run_agent_worker,
-        args=(cves_path, workdir, kernel_version, max_attempts, no_llm, use_docker),
         daemon=True,
     )
     _run_thread.start()
 
-    mode = "Docker" if use_docker else "host"
-    return jsonify({"status": "started", "workdir": workdir, "mode": mode})
+    return jsonify({"status": "started", "mode": "demo"})
+
 
 
 @app.route("/api/stop", methods=["POST"])

@@ -285,7 +285,7 @@ header::before{content:'';position:absolute;top:0;left:28px;right:28px;height:1p
   </div>
   <div class="header-right">
     <span class="btn" onclick="scanWorkdir()">🔄 扫描 / Scan</span>
-    <span class="btn btn-primary" onclick="showRunForm()">▶ 启动 / Start</span>
+    <span class="btn btn-primary" onclick="startAgentDemo()">▶ 启动 / Start</span>
     <span class="btn btn-danger" onclick="stopAgent()">⏹ 停止 / Stop</span>
     <span class="btn" onclick="runHeaderCheck()">🔍 检测 / Check</span>
     <span class="btn" onclick="resetAllCves()">🔄 重置演示 / Reset Demo</span>
@@ -835,6 +835,9 @@ function loadFiles(cveId){
 }
 
 // ===== Run Form =====
+function startAgentDemo(){
+  fetch('/api/run',{method:'POST'}).then(function(r){return r.json()}).then(function(d){if(d.error)showToast('Error: '+d.error,'error');else{showToast('Demo started!','success')}}).catch(function(e){showToast('Failed: '+e.message,'error')});
+}
 function showRunForm(){
   var cont=document.getElementById('runFormContainer');
   if(cont.innerHTML){cont.innerHTML='';return}
